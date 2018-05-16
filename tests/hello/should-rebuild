@@ -1,0 +1,20 @@
+fixture hello
+
+# Build binary
+build_or_fail target/bin/greet
+
+# Account for low precision file system timestamps
+sleep 1
+
+# Edit source
+ed -s main/main.c <<EDIT
+/printf/c
+	printf("salve mundi\n");
+.
+w
+EDIT
+
+# Rebuild binary
+build_or_fail target/bin/greet
+
+strings_must_equal "$(target/bin/greet)" "salve mundi"

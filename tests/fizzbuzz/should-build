@@ -1,0 +1,25 @@
+fixture fizzbuzz
+
+build_or_fail target/bin/fizzbuzz
+
+file_must_exist target/bin/fizzbuzz
+
+strings_must_equal "$(target/bin/fizzbuzz 15)" "1
+2
+fizz
+4
+buzz
+fizz
+7
+8
+fizz
+buzz
+11
+fizz
+13
+14
+fizzbuzz"
+
+library_must_contain target/lib/libmain.a main.o main
+library_must_contain target/lib/libfizz.a fizz.o fizz
+library_must_contain target/lib/libbuzz.a buzz.o buzz

@@ -1,0 +1,205 @@
+#!/bin/sh
+
+# set -e
+
+BUILD_ROOT="$(pwd)"
+
+if [ -f "${BUILD_CONFIG:=build.conf}" ]; then . "./$BUILD_CONFIG"; fi
+
+MODULES="${MODULES:?Build modules not defined in environment or $BUILD_CONFIG}"
+
+BUILD_SOURCE_DIR="${BUILD_SOURCE_DIR:-src}"
+TARGET_DIR="$BUILD_ROOT/${TARGET_NAME:=target}"
+TARGET_TEMP_DIR="${TARGET_TEMP_DIR:-$TARGET_NAME/tmp}"
+
+TARGET_LIBRARY_DIR="$TARGET_NAME/lib"
+TARGET_DEPEND_DIR="$TARGET_NAME/dep"
+TARGET_BINARY_DIR="$TARGET_NAME/bin"
+
+# module definition API
+BINARY() { BINNAME="${1:-$MODULE}"; }
+SOURCE() { SOURCES="$SOURCES $@"; }
+LINKER() { LIBRARIES="$LIBRARIES $@"; }
+REQUIRE() { REQUIREMENTS="$REQUIREMENTS $@"; }
+OBJECT() {
+  MEMBER="${1%.o}"
+  MEMBER_SOURCE="${2:?}";
+  shift 2
+  build_object_target $@;
+}
+
+build_depend() { printf '$(CC) -M $(MODULE_CFLAGS.%s.%s)' "$MODULE" "$MEMBER"; }
+
+# Makefile rule generation
+build_req_list() {
+  sed -n -e 's/^[[:space:]]*REQUIRE[[:space:]]*//p' |
+  sed -e 's/[[:space:]]*$//' -e 's/[[:space:]]\{1,\}/ /' |
+  tr ' ' '\n' |
+  sed -e 's/$/ '"$1"'/' |
+  tr ' ' '\t'
+}
+
+build_object_target() {
+  # Each object file has a dependency file, which lists the sources and
+  # headers the object depends on. In terms of make, the object only
+  # depends on the depend file which in turn depends on the actual
+  # dependencies. Both object files and dependency files are stored in
+  # archives, which is convenient for cc, and for make, since ar can
+  # print the contents of all files (makefile rules).
+  OBJECTS="$OBJECTS $MEMBER.o"
+
+  # SOURCE is relative to the module directory. While source files can
+  # exist in sub-directories, the archive does not include relative
+  # paths, which implies that sources in one module share a single name
+  # space.
+  SOURCE_PATH="${BUILD_SOURCE_DIR:?}/$MODULE/$MEMBER_SOURCE"
+  OBJECT_PATH="$TARGET_TEMP_DIR/$MODULE/$MEMBER.o"
+  DEPEND_PATH="$TARGET_TEMP_DIR/$MODULE/$MEMBER.d"
+
+  # Module member compile flags
+  printf 'MODULE_CFLAGS.%s.%s = $(CFLAGS) $(CPPFLAGS) $(MODULE_INCLUDE.%s)%s\n'\
+    "$MODULE" "$MEMBER" "$MODULE" "${@:+" $@"}"
+
+  # Module library rule
+  printf '%s(%s.o): %s(%s.d)\n' "$LIBRARY" "$MEMBER" "$DEPEND" "$MEMBER"
+  printf '\t$(CC) $(MODULE_CFLAGS.%s.%s) -o "%s" -c "%s"\n' \
+    "$MODULE" "$MEMBER" "$OBJECT_PATH" "$SOURCE_PATH"
+  printf '\t$(AR) rc "%s" "%s"\n' "$LIBRARY" "$OBJECT_PATH"
+  printf '\trm "%s"\n' "$OBJECT_PATH"
+
+  # Depend archive rule
+  printf '%s(%s): %s\n' "$DEPEND" "$MEMBER.d" "$SOURCE_PATH"
+  printf '\t%s %s | \\\n' "$(build_depend)" "$SOURCE_PATH"
+  printf '\tsed "s;%s;%s;" >%s\n' \
+    "$MEMBER.o" "$DEPEND($MEMBER.d)" "$DEPEND_PATH"
+  printf '\t$(AR) rc "%s" "%s"\n' "$DEPEND" "$DEPEND_PATH"
+  printf '\trm "%s"\n' "$DEPEND_PATH"
+}
+
+build_source_target() {
+  # OBJECT is the file name of the source file with an .o suffix
+  MEMBER="$(basename "${MEMBER_SOURCE:?}" .c)"
+  build_object_target $@
+}
+
+build_lib_target() {
+  unset SPACER
+  printf '%s: %s(' "$LIBRARY" "$LIBRARY"
+  for O in $OBJECTS; do
+    printf '%s%s' "$SPACER" "$O"
+    SPACER=" "
+  done
+  printf ')\n\tranlib %s\n' "$LIBRARY"
+}
+
+build_bin_target() {
+  printf '%s: %s\n' "$BINNAME" "$TARGET_BINARY_DIR/$BINNAME"
+  printf '.PHONY: %s\n' "$BINNAME"
+  printf '%s: %s $(MODULE_REQUIRE.%s)\n' "$TARGET_BINARY_DIR/$BINNAME" "$LIBRARY" "$MODULE"
+  printf '\t$(CC) $(CFLAGS) %s $(LDFLAGS) -L%s $(MODULE_LINKER.%s) -o "%s"\n' \
+    "$LIBRARY" "$TARGET_LIBRARY_DIR" "$MODULE" "$TARGET_BINARY_DIR/$BINNAME"
+}
+
+build_module_target() {
+  printf '%s: %s\n' "$MODULE" "$LIBRARY"
+  printf '%s: %s\n' "lib$MODULE.a" "$LIBRARY"
+  printf '.PHONY: %s %s\n' "$MODULE" "lib$MODULE.a"
+  printf 'all: %s\n' "$MODULE"
+}
+
+build_mkdir() { if [ ! -d "$1" ]; then mkdir "$1"; fi; }
+
+build_directories() {
+  build_mkdir "$TARGET_DIR"
+  build_mkdir "$TARGET_TEMP_DIR"
+  build_mkdir "$TARGET_LIBRARY_DIR"
+  build_mkdir "$TARGET_DEPEND_DIR"
+  build_mkdir "$TARGET_BINARY_DIR"
+  for MODULE in $MODULES; do
+    build_mkdir "$TARGET_TEMP_DIR/$MODULE"
+  done
+}
+
+build_prelude() {
+  # Prelude rules
+  printf '.POSIX:\n.SUFFIXES:\n'
+  printf '.PHONY: all clean clean-dep clean-lib clean-bin\n'
+  printf 'all:\nclean: clean-dep clean-lib clean-bin\n'
+  printf 'clean-dep: ; rm -f %s/*\n' "${TARGET_DEPEND_DIR:?}"
+  printf 'clean-lib: ; rm -f %s/*\n' "${TARGET_LIBRARY_DIR:?}"
+  printf 'clean-bin: ; rm -f %s/*\n' "${TARGET_BINARY_DIR:?}"
+}
+
+build_requirements() {
+  printf 'MODULE_REQUIRE.%s =' "$1"
+  for D in $REQUIREMENTS; do printf ' $(MODULE_REQUIRE.%s) %s' "$D" "$D"; done
+  printf '\n'
+
+  # Link flags
+  printf 'MODULE_LINKER.%s = $(MODULE_LDFLAGS.%s)' "$1" "$1"
+  for D in $REQUIREMENTS; do
+    printf ' -l%s $(MODULE_LINKER.%s)' "$D" "$D"
+  done
+  printf '\n'
+
+  # Include flags
+  printf 'MODULE_INCLUDE.%s =' "$1"
+  for D in $REQUIREMENTS; do
+    printf ' $(MODULE_INCLUDE.%s)' "$D"
+    if [ -d "$BUILD_ROOT/${BUILD_SOURCE_DIR:?}/$D/include" ]; then
+      printf ' -I%s/%s/include' "${BUILD_SOURCE_DIR:?}" "$D"
+    fi
+  done
+  printf '\n'
+
+  printf 'MODULE_LDFLAGS.%s = %s\n' "$MODULE" "$LIBRARIES"
+}
+
+word_length() {
+  echo $#
+}
+
+build_makefile() {
+  unset BINNAME REQUIREMENTS SOURCES OBJECTS MEMBER_SOURCE MEMBER DEPEND LIBRARY
+
+  build_prelude
+
+  # Include recursive file dependencies
+  if [ -d "$TARGET_DEPEND_DIR" ]; then
+    find "$TARGET_DEPEND_DIR" -name '*.a' -exec "${AR:-ar}" p {} \;
+  fi
+
+  if [ $(word_length $MODULES) -gt 1 ]; then
+    MODULES="$(for MODULE in $MODULES; do
+      if [ -f "$BUILD_SOURCE_DIR/$MODULE/module" ]; then
+        build_req_list $MODULE <"$BUILD_SOURCE_DIR/$MODULE/module"
+      fi
+    done | tsort)"
+  fi
+
+  # Produce all normal rules (each ``module'' file evaluated in independent
+  # sub-shell)
+  for MODULE in $MODULES; do (
+    DEPEND="${TARGET_DEPEND_DIR:?}/$MODULE.a"
+    LIBRARY="${TARGET_LIBRARY_DIR:?}/lib$MODULE.a"
+
+    cd "$BUILD_SOURCE_DIR/$MODULE"
+    if [ -f module ]; then . ./module; fi
+
+    build_requirements "$MODULE"
+
+    if [ -z "$SOURCES" -a -z "$OBJECTS" ]; then
+      SOURCES=*.c
+    fi
+    for MEMBER_SOURCE in ${SOURCES}; do
+      build_source_target;
+    done
+
+    build_lib_target
+    if [ -n "$BINNAME" ]; then build_bin_target; fi
+    build_module_target
+  ) || exit 1; done
+}
+
+build_directories
+build_makefile | ${MAKE:-make -rf-} $@

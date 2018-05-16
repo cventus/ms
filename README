@@ -1,0 +1,98 @@
+COMPONO - A BUILD SCRIPT FOR MODULAR C CODE
+-------------------------------------------
+
+Compono is a shell script that uses make to build C source that has been
+organized into build modules. Each build module is a small local library and
+each can optionally be compiled into executable binaries. Build modules can be
+used to separate platform specific implementations, creating multiple binaries,
+and more generally for organizing code.
+
+USAGE
+-----
+
+A copy of the "build" file should be added to the project. It can be invoked
+like make, i.e. macro definitions and targets to build. If invoked without
+parameters then everything is compiled.
+
+BUILD MODULES
+-------------
+
+A compono project is defined by a build configuration file named "build.conf"
+and one or more build modules. Build modules are subdirectories of "./src/",
+and can contain a module configuration file, which is shell script. The module
+configuration files list the sources that belong to the module and can contain
+custom build rules, e.g. for code generation.
+
+An example project which have two modules, "data" and "cmd", might contain the
+following files:
+
+    ./build
+    ./build.conf
+
+    ./src/data/module
+    ./src/data/load.c
+    ./src/data/store.c
+    ./src/data/include/data.h
+
+    ./src/cmd/module
+    ./src/cmd/main.c
+
+The base directory contains "build" and "build.conf". When "build" is executed
+it reads "build.conf", which may contain arbitrary shell functions and code.
+Its main purpose, however, is to specify which modules are part of the build
+and this is done by defining the MODULES variable. In this case it could
+contain the line
+
+    MODULES="data cmd"
+
+A build module has a name, which is the directory name, an optional
+configuration file named "module", and consists of build members. Each member
+"foo" is built from a source file, generally with the same name "foo.c", is
+turned into an object file "foo.o", and has header file dependencies tracked
+by a file called "foo.d". All object files from one build module are collected
+in the module library ./target/lib/lib<module>.a and every dependency file in
+a companion archive ./target/dep/<module>.a, which can be inspected using the
+ar tool. E.g. "ar p ./target/dep/<module>.a" prints all member rules to
+standard output.
+
+Module configuration files should be named "module" and are shell scripts which
+are executed by the build script. Their working directory is the module
+directory itself and their standard outputs are directed straight to the
+generated make file. This way it's possible to produce arbitrary build rules by
+writing to standard output, however, it's preferable to use the utility
+commands REQUIRE, BINARY, SOURCE, OBJECT, and LINKER, which are described
+below.
+
+BUILD UTILITIES
+---------------
+
+REQUIRE adds its arguments to the module prerequisites, which are the direct
+build dependencies. When a module is built, all of its prerequisite modules are
+built first, which might include generated headers. The external headers of
+each prerequisit module is added to the include search paths when a module's
+objects are built. When a binary module is built it is also linked against the
+required modules.
+
+BINARY marks the module as a binary. If an argument is provided then that
+specifies the binary output name. The default binary name is the name of the
+module directory. Compiled binaries are located under the ./target/bin
+directory.
+
+SOURCE adds one member (object) per source file argument with default build
+rules. If it is not specified, then all C sources in the module directory are
+included by default. This default behavior makes the module configuration file
+optional in simple cases, but it is often good to be specific about which files
+belong to a module.
+
+OBJECT gives more control over how files are compiled and takes at two or more
+arguments. The first is the object name e.g. "foo.o" and the second the file
+name, e.g. "foo.c". Any following arguments are file specific CFLAGS.
+
+LINKER arguments are passed along with LDFLAGS whenever a binary is compiled
+which depends on this module.
+
+TESTING COMPONO
+---------------
+
+Run the ./test command in the root directory which outputs minimal TAP to
+standard output. Test-run outputs are stored in the ./logs/ directory.

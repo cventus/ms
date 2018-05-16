@@ -1,0 +1,60 @@
+#!/bin/sh
+
+set -e
+
+dir="$(pwd)"
+
+fixture() {
+  cp -r "$dir/fixtures/$1/"* .
+  cp "$dir/build" .
+}
+
+build_or_fail() {
+  ./build $@ || fail "Unable to build: $@"
+}
+
+fail() {
+  if [ $# -gt 0 ]; then echo "$@" >&2; fi
+  exit 1
+}
+
+library_must_contain() { # library member symbol [type=T]
+  if [ -z "$(nm -PA "$1" | grep "^$1\[$2\]: $3 ${4:-T}")" ]; then
+    echo "$3 not found in $1[$2]" >&2
+    test -e "$1" && nm -PA $1 >&2
+    fail
+  fi
+}
+
+strings_must_equal() { # [message] received expected
+  if [ $# -eq 3 ]; then
+    [ "$2" = "$3" ] || fail "$1: got [$2], expected [$3]"
+  else
+    [ "$1" = "$2" ] || fail "got [$1], expected [$2]"
+  fi
+}
+
+file_must_exist() { # file
+  [ -e "$1" ] || fail "Not found: $1"
+}
+
+directory_must_exist() { # file
+  [ -d "$1" ] || fail "Not found: $1"
+}
+
+TESTS="$(cd tests; find ${@:-.} -type f -print | sort | uniq | sed 's/^.\///')"
+echo 1..$(echo "$TESTS" | wc -l)
+
+# Run tests specified on command line
+for t in $TESTS; do
+  DIR=$(mktemp -d);
+  mkdir -p $(dirname logs/$t)
+  OUT="logs/$t.out"
+  ERR="logs/$t.err"
+  if (cd $DIR; . $dir/tests/$t;) 1>$OUT 2>$ERR; then
+    echo ok $t
+  else
+    echo "not ok $t"
+  fi
+  rm -r $DIR
+done

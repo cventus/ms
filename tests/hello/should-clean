@@ -1,0 +1,17 @@
+# project *hello* should be cleaned up
+
+fixture hello
+
+build_or_fail target/bin/greet
+
+build_or_fail clean
+
+directory_must_be_empty() {
+  [ -d "$1" -a -z "$(ls $1)" ] || fail "$1 is not empty!"
+}
+
+directory_must_exist target
+directory_must_be_empty target/bin
+directory_must_be_empty target/lib
+directory_must_be_empty target/dep
+directory_must_be_empty target/tmp/main

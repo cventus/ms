@@ -1,0 +1,10 @@
+# project *hello* should compile properly when executing the build script
+
+fixture hello
+
+build_or_fail target/bin/greet
+
+directory_must_exist target
+file_must_exist target/bin/greet
+strings_must_equal "When running greet" "$(target/bin/greet)" "hello, world"
+library_must_contain target/lib/libmain.a main.o main

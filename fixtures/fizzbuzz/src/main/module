@@ -1,0 +1,3 @@
+BINARY	fizzbuzz
+REQUIRE	fizz buzz
+SOURCE	main.c
