@@ -1,0 +1,24 @@
+# Use ``cat'' as a phony ``make'' to see output and only run ``build'' itself
+
+fixture pythagoras
+
+echo "[Makefile]"
+MAKE=cat build_or_fail
+
+echo "[Building]"
+MAKE="make -rf-" build_or_fail
+echo
+
+echo "[File structure]"
+tree
+echo
+echo "[Makefile dependencies]"
+for f in $(ls target/dep); do
+  echo
+  echo $f
+  ar p target/dep/$f
+done
+
+echo
+echo "[Building with dependencies]"
+build_or_fail

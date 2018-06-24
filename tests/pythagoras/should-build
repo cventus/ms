@@ -1,0 +1,13 @@
+# project *pythagoras* should compile properly when executing the build script
+
+fixture pythagoras
+
+build_or_fail target/bin/pythagoras
+
+directory_must_exist target
+file_must_exist target/bin/pythagoras
+strings_must_equal "When running pythagoras" \
+  "$(target/bin/pythagoras 3 4)" "sqrt(3*3 + 4*4) = 5"
+library_must_contain target/lib/libpythagoras.a main.o main
+library_must_contain target/lib/libpythagoras.a parse.o parse
+library_must_contain target/lib/libpythagoras.a pythagoras.o pythagoras
