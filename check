@@ -5,12 +5,22 @@ set -e
 dir="$(pwd)"
 
 fixture() {
-  cp -r "$dir/fixtures/$1/"* .
-  cp "$dir/build" .
+  if [ "$1" == "-c" ]; then
+    # Copy fixture (e.g. for changing sources, testing normal build)
+    cp -r "$dir/fixtures/$2/"* .
+    unset BUILD_CONFIG
+  else
+    # Use sources in non-current directory
+    export BUILD_CONFIG="$dir/fixtures/$1/build.conf"
+  fi
+}
+
+build() {
+  $dir/build $@
 }
 
 build_or_fail() {
-  ./build $@ || fail "Unable to build: $@"
+  build $@ || fail "Unable to build: $@"
 }
 
 fail() {
@@ -49,12 +59,14 @@ echo 1..$(echo "$TESTS" | wc -l)
 for t in $TESTS; do
   DIR=$(mktemp -d);
   mkdir -p $(dirname logs/$t)
-  OUT="logs/$t.out"
-  ERR="logs/$t.err"
-  if (cd $DIR; . $dir/tests/$t;) 1>$OUT 2>$ERR; then
-    echo ok $t
-  else
-    echo "not ok $t"
-  fi
+  {
+    time {
+      if (cd $DIR; . "$dir/tests/$t";) 1>"logs/$t" 2>&1; then
+        echo ok $t
+      else
+        echo "not ok $t"
+      fi
+    }
+  } 2>&1 | awk '/ok/ { print } !/ok/ && /./ { printf("\t%s\n", $0) }'
   rm -r $DIR
 done

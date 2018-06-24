@@ -2,13 +2,9 @@
 
 fixture hello
 
-build_or_fail -s
-
-echo "[Makefile]"
-MAKE=cat build_or_fail
-
-echo
-echo "[Makefile dependencies]"
-for f in target/dep/*; do
-  ar p $f
-done
+if build -s; then
+  echo "[Makefile]"
+else
+  echo "[Broken Makefile]"
+fi
+MAKE=cat build

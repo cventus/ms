@@ -1,6 +1,7 @@
-fixture hello
+# Use temporary copy of the hello fixture so that we can edit sources
+fixture -c hello
 
-# Build binary
+# Build binary initially
 build_or_fail target/bin/greet
 
 # Account for low precision file system timestamps
@@ -8,13 +9,12 @@ sleep 1
 
 # Edit source
 ed -s main/main.c <<EDIT
-/printf/c
-	printf("salve mundi\n");
-.
+/printf/s/hello, world/salve mundi/
 w
 EDIT
 
-# Rebuild binary
+# Source file changed: binary should be rebuilt
+build -q target/bin/greet && fail "Target should not be up to date"
 build_or_fail target/bin/greet
 
 strings_must_equal "$(target/bin/greet)" "salve mundi"

@@ -1,8 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <fizz.h>
-#include <buzz.h>
+#include "fizz.h"
+#include "buzz.h"
 
 int main(int argc, char *argv[])
 {

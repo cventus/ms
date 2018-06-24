@@ -7,11 +7,18 @@ build_or_fail target/bin/greet
 build_or_fail clean
 
 directory_must_be_empty() {
-  [ -d "$1" -a -z "$(ls $1)" ] || fail "$1 is not empty!"
+  files=$(ls $1)
+  [ -d "$1" -a -z "$files" ] || fail "$1 is not empty: $files"
+}
+
+directory_must_be_almost_empty() {
+  files=$(ls $1 | sed /test/d)
+  [ -d "$1" -a -z "$files" ] || fail "$1 is not empty: $files"
 }
 
 directory_must_exist target
 directory_must_be_empty target/bin
 directory_must_be_empty target/lib
 directory_must_be_empty target/dep
-directory_must_be_empty target/tmp/main
+directory_must_be_almost_empty target/tmp/main
+directory_must_be_empty target/tmp/main/test
