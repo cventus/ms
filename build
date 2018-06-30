@@ -35,6 +35,7 @@ readonly TARGET_INCLUDE_DIR="$TARGET_NAME/include"
 BINARY() { BINNAME="${1:-$MODULE}"; }
 SOURCE() { SOURCES="$SOURCES $@"; }
 LINKER() { LIBRARIES="$LIBRARIES $@"; }
+TEST() { TESTS="$TESTS $@"; }
 REQUIRE() { REQUIREMENTS="$REQUIREMENTS $@"; }
 OBJECT()
 {
@@ -60,6 +61,11 @@ build_binary_recipe()
     "$TARGET_LIBRARY_DIR" "$*"
 }
 
+build_depend_flags()
+{
+  echo -MMD -MP -MT "\"$1\"" -MF "\"$2\""
+}
+
 # <output path> <name> <source> [<extra cc args>...]
 # Print rules (but not a target) to create "<output path>/<name>.o" and
 # "<output path>/<name>.d" to standard output
@@ -74,7 +80,7 @@ build_member_rule()
   # Module library rule
   echo "$MEMBER_PATH: $SOURCE_PATH"
   build_source_recipe "$@" \
-    -MMD -MP -MT "\"$MEMBER_PATH\"" -MF "\"$MKFILE_PATH\"" \
+    $(build_depend_flags "$MEMBER_PATH" "$MKFILE_PATH") \
     -o "\"$OBJECT_PATH\"" -c "\"$SOURCE_PATH\""
   printf '\t$(AR) -rc "%s" "%s"\n' "$LIBRARY" "$OBJECT_PATH"
   printf '\t$(AR) -rc "%s" "%s"\n' "$DEPEND" "$MKFILE_PATH"
@@ -158,6 +164,12 @@ build_prelude() {
   printf '.PHONY: all clean clean-dep clean-lib clean-bin\n\n'
 }
 
+build_postlude() {
+  printf 'list-tests:\n\tfor T in'
+  for M in $MODULES; do printf ' $(MODULE_TESTS.%s)' "$M"; done
+  printf '; do echo $$T; done\n'
+}
+
 build_module_variables() {
   printf '\nMODULE_LINK.%s =' "$MODULE"
   for R in $REQUIREMENTS; do
@@ -169,6 +181,15 @@ build_module_variables() {
     printf ' -l%s $(MODULE_LDFLAGS.%s)' "$R" "$R"
   done
   printf '\n\n'
+
+  printf '\nMODULE_TESTS.%s =' "$MODULE"
+  for T in $TESTS; do printf ' %s' "$R"; done
+  printf '\n\n'
+
+  printf 'test-%s:\n' "$MODULE"
+  printf '.PHONY: test-%s\n' "$MODULE"
+  printf 'test: test-%s\n' "$MODULE"
+  printf '\n'
 }
 
 readonly BUILD_VARIABLE_RE='^MODULE_\(LINK\|LDFLAGS\)\.[^= ]* ='
@@ -184,13 +205,14 @@ build_makefile() {
   # sub-shell)
   MAKEFILE=$(for MODULE in $MODULES; do (
     DEPEND="${TARGET_DEPEND_DIR:?}/m$MODULE.a"
+    TEST_DEPEND="${TARGET_DEPEND_DIR:?}/t$MODULE.a"
     LIBRARY="${TARGET_LIBRARY_DIR:?}/lib$MODULE.a"
-    readonly MODULE DEPEND LIBRARY
+    readonly MODULE DEPEND TEST_DEPEND LIBRARY
 
     cd "$BUILD_SOURCE_DIR/$MODULE"
     if [ -f module ]; then . ./module; fi
 
-    build_module_variables "$MODULE"
+    build_module_variables
 
     if [ -z "$SOURCES" -a -z "$OBJECTS" ]; then
       SOURCES=*.c
@@ -211,6 +233,8 @@ build_makefile() {
   # Put variable definitions first and rules second
   echo "$MAKEFILE" | build_variable_filter
   echo "$MAKEFILE" | build_rules_filter
+
+  build_postlude
 
   # Include recursive file dependencies
   if [ -d "$TARGET_DEPEND_DIR" ]; then

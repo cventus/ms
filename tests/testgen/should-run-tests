@@ -1,0 +1,11 @@
+# project *hello* should compile properly when executing the build script
+
+fixture testgen
+
+build_or_fail target/test/calc/{passes,fails}
+
+directory_must_exist target
+file_must_exist target/test/calc/passes
+file_must_exist target/test/calc/fails
+strings_must_equal "When running passing test" "$(target/test/calc/passes)" ""
+strings_must_equal "When running failing test" "$(target/test/calc/fails 2>&1)" "fails on purpose = -1"
