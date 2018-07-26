@@ -1,0 +1,7 @@
+fixture rational
+
+build_or_fail target/bin/eval
+
+directory_must_exist target
+file_must_exist target/bin/eval
+strings_must_equal "When running eval" "$(target/bin/eval 1 + 1/2*3/7)" "1+3/14"

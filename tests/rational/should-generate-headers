@@ -1,0 +1,8 @@
+fixture rational
+
+echo Building rational.h
+if build target/include/rational.h | fold -w72 | sed 's/^/	/'; then
+  echo
+  echo "Contents of target/include/rational.h:"
+  fold -w72 target/include/rational.h | sed 's/^/	/'
+fi

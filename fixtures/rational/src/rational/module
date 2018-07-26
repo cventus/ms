@@ -1,0 +1,39 @@
+cppheader() {
+  printf '%s/%s/%srat.h: ' "$TARGET_SOURCE_DIR" "$MODULE" "$3" 
+  echo "$BUILD_SOURCE_DIR/$MODULE/rat.h"
+  build_source_recipe -E -C \
+    -DTYPE="\"$1"\" \
+    -DUTYPE="\"$2"\" \
+    -DTYPE_PFX="\"$3"\" \
+    -DUTYPE_MAX="\"$4"\" \
+    "\"$BUILD_SOURCE_DIR/$MODULE/rat.h\"" '>"$@"'
+  echo
+}
+
+# Generate object and header for each integer type
+while IFS=: read TYPE UTYPE TYPE_PFX UTYPE_MAX; do
+  OBJECT ${TYPE_PFX}rat rat.c \
+    -DTYPE="\"$TYPE"\" \
+    -DUTYPE="\"$UTYPE"\" \
+    -DUTYPE_MAX="\"$UTYPE_MAX"\" \
+    -DTYPE_PFX="\"$TYPE_PFX"\"
+
+  cppheader "$TYPE" "$UTYPE" "$TYPE_PFX" "$UTYPE_MAX"
+done <<EOF
+int:unsigned int::UINT_MAX
+long:unsigned long:l:ULONG_MAX
+long long:unsigned long long:ll:ULLONG_MAX
+EOF
+
+HEADER rational.h
+
+printf '%s/rational.h:' "$TARGET_INCLUDE_DIR"
+printf " $TARGET_SOURCE_DIR/$MODULE/%srat.h" "" l ll
+printf "\n\tsed -n '/begin public rat.h/,/end public rat.h/p'"
+printf " \"$TARGET_SOURCE_DIR/$MODULE/%srat.h"\" "" l ll
+printf " | sed '/\(begin\|end\) public rat.h/d'"
+printf " | cat \
+\"$BUILD_SOURCE_DIR/$MODULE/prolog.h\" \
+- \
+\"$BUILD_SOURCE_DIR/$MODULE/epilog.h"\"
+printf ' >\"$@\"\n'

@@ -34,16 +34,16 @@ readonly TARGET_INCLUDE_DIR="$TARGET_NAME/include"
 # module definition API
 BINARY() { BINNAME="${1:-$MODULE}"; }
 SOURCE() { SOURCES="$SOURCES $@"; }
+HEADER() { HEADERS="$HEADERS $@"; }
 LINKER() { LIBRARIES="$LIBRARIES $@"; }
 TEST() { TESTS="$TESTS $@"; }
 REQUIRE() { REQUIREMENTS="$REQUIREMENTS $@"; }
 OBJECT()
 {
   MEMBER="${1%.o}"
-  MEMBER_SOURCE="${BUILD_SOURCE_DIR:?}/$MODULE/${2:?}"
+  MEMBER_SOURCE="${BUILD_SOURCE_DIR:?}/$MODULE/$2"
   shift 2
   OBJECTS="$OBJECTS $MEMBER.o"
-  # build_object_target $@
   build_member_rule "$TARGET_TEMP_DIR/$MODULE" "$MEMBER" "$MEMBER_SOURCE" "$@"
 }
 
@@ -78,7 +78,7 @@ build_member_rule()
   shift 3
 
   # Module library rule
-  echo "$MEMBER_PATH: $SOURCE_PATH"
+  echo "$MEMBER_PATH: $SOURCE_PATH \$(MODULE_HEADERS.$MODULE)"
   build_source_recipe "$@" \
     $(build_depend_flags "$MEMBER_PATH" "$MKFILE_PATH") \
     -o "\"$OBJECT_PATH\"" -c "\"$SOURCE_PATH\""
@@ -90,12 +90,8 @@ build_member_rule()
 # target/lib/libfoo.a: target/lib/libfoo.a(bar.o baz.o)
 #         $(AR) -s target/lib/libfoo.a
 build_lib_target() {
-  unset SPACER
-  printf '%s: %s(' "$LIBRARY" "$LIBRARY"
-  for O in $OBJECTS; do
-    printf '%s%s' "$SPACER" "$O"
-    SPACER=" "
-  done
+  printf '%s: %s( ' "$LIBRARY" "$LIBRARY"
+  printf '\\\n\t%s ' $OBJECTS
   printf ')\n\t$(AR) -s "%s"\n\n' "$LIBRARY"
 }
 
@@ -112,7 +108,7 @@ build_bin_target() {
 
   build_binary_recipe "$LIBRARY" "\$(MODULE_LDFLAGS.$MODULE)" -o "\"$TARGET_BINARY_DIR/$BINNAME\""
 
-  printf '\n\n'
+  printf '\n'
 }
 
 build_module_target() {
@@ -171,20 +167,26 @@ build_postlude() {
 }
 
 build_module_variables() {
-  printf '\nMODULE_LINK.%s =' "$MODULE"
+  printf 'MODULE_LINK.%s =' "$MODULE"
   for R in $REQUIREMENTS; do
     printf ' %s/lib%s.a $(MODULE_LINK.%s)' "$TARGET_LIBRARY_DIR" "$R" "$R"
   done
 
   printf '\nMODULE_LDFLAGS.%s = %s' "$MODULE" "$LIBRARIES"
-  for R in $REQUIREMENTS; do
-    printf ' -l%s $(MODULE_LDFLAGS.%s)' "$R" "$R"
-  done
-  printf '\n\n'
+  if [ "$REQUIREMENTS" ]; then
+    printf ' -l%s' $REQUIREMENTS
+    printf ' $(MODULE_LDFLAGS.%s)' $REQUIREMENTS
+  fi
+  printf '\n'
 
   printf '\nMODULE_TESTS.%s =' "$MODULE"
-  for T in $TESTS; do printf ' %s' "$R"; done
-  printf '\n\n'
+  printf ' %s' $TESTS
+  printf '\n'
+
+  printf '\nMODULE_HEADERS.%s =' "$MODULE"
+  if [ "$HEADERS" ]; then printf " $TARGET_INCLUDE_DIR/%s" $HEADERS; fi
+  if [ "$REQUIREMENTS" ]; then printf ' $(MODULE_HEADERS.%s)' $REQUIREMENTS; fi
+  printf '\n'
 
   printf 'test-%s:\n' "$MODULE"
   printf '.PHONY: test-%s\n' "$MODULE"
@@ -192,12 +194,12 @@ build_module_variables() {
   printf '\n'
 }
 
-readonly BUILD_VARIABLE_RE='^MODULE_\(LINK\|LDFLAGS\)\.[^= ]* ='
+readonly BUILD_VARIABLE_RE='^MODULE_\(LINK\|LDFLAGS\|HEADERS\|TESTS\)\.[^= ]* ='
 build_variable_filter() { sed -n "/${BUILD_VARIABLE_RE}/p"; }
 build_rules_filter() { sed "/${BUILD_VARIABLE_RE}/d"; }
 
 build_makefile() {
-  unset BINNAME REQUIREMENTS SOURCES OBJECTS MEMBER_SOURCE MEMBER DEPEND LIBRARY
+  unset BINNAME REQUIREMENTS SOURCES OBJECTS LIBRARIES TESTS HEADERS
 
   build_prelude
 
@@ -214,18 +216,10 @@ build_makefile() {
 
     build_module_variables
 
-    if [ -z "$SOURCES" -a -z "$OBJECTS" ]; then
-      SOURCES=*.c
-    fi
-    if [ -n "$SOURCES" ]; then
-      for MEMBER_SOURCE in $SOURCES; do
-        build_member_rule \
-          "$TARGET_TEMP_DIR/$MODULE" \
-          "$(basename $MEMBER_SOURCE .c)" \
-          "$BUILD_SOURCE_DIR/$MODULE/$MEMBER_SOURCE"
-        OBJECTS="$OBJECTS $(basename $MEMBER_SOURCE .c).o"
-      done
-    fi
+    if [ -z "$SOURCES" -a -z "$OBJECTS" ]; then SOURCES=*.c; fi
+    for MEMBER_SOURCE in $SOURCES; do
+      OBJECT "$(basename $MEMBER_SOURCE .c).o" "$MEMBER_SOURCE"
+    done
 
     build_module_target
   ) || exit 1; done)
