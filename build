@@ -49,6 +49,25 @@ OBJECT()
 
 # Makefile rule generation
 
+build_source_target()
+{
+  generated_target=$1
+  shift
+  echo "$TARGET_SOURCE_DIR/$MODULE/$generated_target: $*"
+}
+
+build_recipe_line()
+{
+  printf '\t%s\n' "$*"
+}
+
+build_include_target()
+{
+  generated_target=$1
+  shift
+  echo "$TARGET_INCLUDE_DIR/$generated_target: $*"
+}
+
 build_source_recipe()
 {
   printf '\t$(CC) $(CFLAGS) $(CPPFLAGS) -I"%s" -I"%s" %s\n' \
@@ -108,7 +127,7 @@ build_bin_target() {
 
   build_binary_recipe "$LIBRARY" "\$(MODULE_LDFLAGS.$MODULE)" -o "\"$TARGET_BINARY_DIR/$BINNAME\""
 
-  printf '\n'
+  echo
 }
 
 build_module_target() {
@@ -209,9 +228,13 @@ build_makefile() {
     DEPEND="${TARGET_DEPEND_DIR:?}/m$MODULE.a"
     TEST_DEPEND="${TARGET_DEPEND_DIR:?}/t$MODULE.a"
     LIBRARY="${TARGET_LIBRARY_DIR:?}/lib$MODULE.a"
-    readonly MODULE DEPEND TEST_DEPEND LIBRARY
+    MODULE_DIR="$BUILD_SOURCE_DIR/$MODULE"
+    GENERATED_SOURCE_DIR="$TARGET_SOURCE_DIR/$MODULE"
+    GENERATED_INCLUDE_DIR="$TARGET_INCLUDE_DIR/$MODULE"
+    readonly MODULE DEPEND TEST_DEPEND LIBRARY MODULE_DIR
+    readonly GENERATED_SOURCE_DIR GENERATED_SOURCE_DIR
 
-    cd "$BUILD_SOURCE_DIR/$MODULE"
+    cd "$MODULE_DIR"
     if [ -f module ]; then . ./module; fi
 
     build_module_variables
