@@ -10,25 +10,31 @@ specialize_object() {
 
 specialize_header() {
   build_source_target "${3}rat.h" "$MODULE_DIR/rat.h"
-  build_source_recipe -E -C $(cpp_macros "$@") '"$?" >"$@"'
+  build_cc_recipe -E -C $(cpp_macros "$@") '"$?" >"$@"'
   echo
 }
 
-# Generate object and header for each integer type
-while IFS=: read -r TYPE UTYPE TYPE_PFX UTYPE_MAX; do
-  specialize_object "$TYPE" "$UTYPE" "$TYPE_PFX" "$UTYPE_MAX"
-  specialize_header "$TYPE" "$UTYPE" "$TYPE_PFX" "$UTYPE_MAX"
-done <<EOF
+# List integer types on fd 3
+exec 3<<EOF # signed:unsigned:mangle:max
 int:unsigned int::UINT_MAX
 long:unsigned long:l:ULONG_MAX
 long long:unsigned long long:ll:ULLONG_MAX
 EOF
 
+# Generate object and header for each integer type
+while IFS=: read -r TYPE UTYPE TYPE_PFX UTYPE_MAX <&3; do
+  specialize_object "$TYPE" "$UTYPE" "$TYPE_PFX" "$UTYPE_MAX"
+  specialize_header "$TYPE" "$UTYPE" "$TYPE_PFX" "$UTYPE_MAX"
+done
+
+# Close fd 3
+exec 3<&-
+
 build_include_target rational.h \
 	$(printf " $GENERATED_SOURCE_DIR/%srat.h" "" l ll)
 
 # Recipe for composing header from parts
-build_recipe_line "\
+build_sh_recipe "\
 sed -n '/begin public rat.h/,/end public rat.h/p'\
 $(printf " $GENERATED_SOURCE_DIR/%srat.h" "" l ll) | \
 sed '/\\(begin\\|end\\) public rat.h/d' | \

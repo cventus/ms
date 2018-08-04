@@ -41,69 +41,114 @@ REQUIRE() { REQUIREMENTS="$REQUIREMENTS $@"; }
 OBJECT()
 {
   MEMBER="${1%.o}"
-  MEMBER_SOURCE="${BUILD_SOURCE_DIR:?}/$MODULE/$2"
+  MEMBER_SOURCE="$MODULE_DIR/$2"
   shift 2
   OBJECTS="$OBJECTS $MEMBER.o"
-  build_member_rule "$TARGET_TEMP_DIR/$MODULE" "$MEMBER" "$MEMBER_SOURCE" "$@"
+
+  build_cc_target "$LIBRARY($MEMBER.o)" "$MEMBER_SOURCE"
+  build_object_recipe "$MODULE_TEMP_DIR/$MEMBER.o" "$DEPEND" \
+    "$MODULE_TEMP_DIR/$MEMBER.o" "$MEMBER_SOURCE" "$@"
+  build_ar_recipe "$LIBRARY" "$MODULE_TEMP_DIR/$MEMBER.o"
+  build_rm_recipe "$MODULE_TEMP_DIR/$MEMBER.o"
 }
 
 # Makefile rule generation
-
-build_source_target()
-{
-  generated_target=$1
-  shift
-  echo "$TARGET_SOURCE_DIR/$MODULE/$generated_target: $*"
-}
-
-build_recipe_line()
+build_sh_recipe()
 {
   printf '\t%s\n' "$*"
 }
 
-build_include_target()
+build_rm_recipe()
 {
-  generated_target=$1
-  shift
-  echo "$TARGET_INCLUDE_DIR/$generated_target: $*"
+  printf '\trm -f %s\n' "$*"
 }
 
-build_source_recipe()
+build_cc_recipe()
 {
   printf '\t$(CC) $(CFLAGS) $(CPPFLAGS) -I"%s" -I"%s" %s\n' \
     "$TARGET_INCLUDE_DIR" "$BUILD_INCLUDE_DIR" "$*"
 }
 
-build_binary_recipe()
+# Invoke the compiler with paths and module linkage included
+build_end_target()
 {
-  printf '\t$(CC) $(CFLAGS) $(LDFLAGS) -L%s %s\n' \
-    "$TARGET_LIBRARY_DIR" "$*"
+  echo
 }
 
+build_ld_recipe()
+{
+  printf "\t\
+\$(CC) \$(CFLAGS) \$(LDFLAGS) \
+-L$TARGET_LIBRARY_DIR %s \
+\$(MODULE_LDFLAGS.$MODULE)\n" \
+    "$*"
+}
+
+# 1: Makefile target name, 2: Output file
 build_depend_flags()
 {
-  echo -MMD -MP -MT "\"$1\"" -MF "\"$2\""
+  echo -MMD -MP -MT "\"$1"\" -MF "\"$2"\"
 }
 
-# <output path> <name> <source> [<extra cc args>...]
-# Print rules (but not a target) to create "<output path>/<name>.o" and
-# "<output path>/<name>.d" to standard output
-build_member_rule()
+build_source_target()
 {
-  OBJECT_PATH="$1/$2.o"
-  MEMBER_PATH="$LIBRARY($2.o)"
-  MKFILE_PATH="$1/$2.d"
-  SOURCE_PATH=$3
-  shift 3
+  TARGET_=$1
+  shift
+  printf '%s: %s\n' "$GENERATED_SOURCE_DIR/$TARGET_" "$*"
+}
 
-  # Module library rule
-  echo "$MEMBER_PATH: $SOURCE_PATH \$(MODULE_HEADERS.$MODULE)"
-  build_source_recipe "$@" \
-    $(build_depend_flags "$MEMBER_PATH" "$MKFILE_PATH") \
-    -o "\"$OBJECT_PATH\"" -c "\"$SOURCE_PATH\""
-  printf '\t$(AR) -rc "%s" "%s"\n' "$LIBRARY" "$OBJECT_PATH"
-  printf '\t$(AR) -rc "%s" "%s"\n' "$DEPEND" "$MKFILE_PATH"
-  printf '\trm \"%s\" \"%s\"\n\n' "$OBJECT_PATH" "$MKFILE_PATH"
+build_include_target()
+{
+  TARGET_=$1
+  shift
+  printf '%s: %s\n' "$TARGET_INCLUDE_DIR/$TARGET_" "$*"
+}
+
+build_cc_target()
+{
+  TARGET_=$1
+  shift
+  printf '%s: %s $(MODULE_HEADERS.%s)\n' "$TARGET_" "$*" "$MODULE"
+}
+
+build_ld_target()
+{
+  TARGET_=$1
+  shift
+  printf '%s: %s $(MODULE_LINK.%s)\n' "$TARGET_" "$*" "$MODULE"
+}
+
+build_bin_target()
+{
+  TARGET_=$1
+  shift
+  printf '%s: %s $(MODULE_LINK.%s) $(MODULE_HEADERS.%s)\n' \
+    "$TARGET_" "$*" "$MODULE" "$MODULE"
+}
+
+# <archive> <member>
+build_ar_recipe()
+{
+  printf '\t$(AR) -rc "%s" "%s"\n' "$1" "$2"
+}
+
+# <target> <archive> <object> <source> [<extra cc args>...]
+build_object_recipe()
+{
+  TARGET_="$1"
+  ARCHIVE_="$2"
+  OBJECT_="$3"
+  MKFILE_="${OBJECT_%.o}.d"
+  SOURCE_="$4"
+  shift 4
+
+  build_cc_recipe "$@" \
+    $(build_depend_flags "$TARGET_" "$MKFILE_") \
+    -c "\"$SOURCE_"\" \
+    -o "\"$OBJECT_"\"
+
+  build_ar_recipe "$ARCHIVE_" "$MKFILE_"
+  build_rm_recipe "$MKFILE_"
 }
 
 # target/lib/libfoo.a: target/lib/libfoo.a(bar.o baz.o)
@@ -114,7 +159,7 @@ build_lib_target() {
   printf ')\n\t$(AR) -s "%s"\n\n' "$LIBRARY"
 }
 
-build_bin_target() {
+build_module_bin_target() {
   printf '%s: %s\n\n' "$MODULE" "$TARGET_BINARY_DIR/$BINNAME"
 
   if [ "$BINNAME" != "$MODULE" ]; then
@@ -122,12 +167,9 @@ build_bin_target() {
     printf '.PHONY: %s\n' "$BINNAME"
   fi
 
-  printf '%s/%s: %s $(MODULE_LINK.%s)\n' \
-    "$TARGET_BINARY_DIR" "$BINNAME" "$LIBRARY" "$MODULE"
-
-  build_binary_recipe "$LIBRARY" "\$(MODULE_LDFLAGS.$MODULE)" -o "\"$TARGET_BINARY_DIR/$BINNAME\""
-
-  echo
+  build_ld_target "$TARGET_BINARY_DIR/$BINNAME" "$LIBRARY"
+  build_ld_recipe "$LIBRARY" -o "\"$TARGET_BINARY_DIR/$BINNAME\""
+  build_end_target
 }
 
 build_module_target() {
@@ -137,7 +179,7 @@ build_module_target() {
   printf 'all: %s\n\n' "$MODULE"
 
   build_lib_target
-  if [ -n "$BINNAME" ]; then build_bin_target; fi
+  if [ -n "$BINNAME" ]; then build_module_bin_target; fi
 }
 
 build_mkdir() { if [ ! -d "$1" ]; then mkdir "$1"; fi; }
@@ -207,9 +249,9 @@ build_module_variables() {
   if [ "$REQUIREMENTS" ]; then printf ' $(MODULE_HEADERS.%s)' $REQUIREMENTS; fi
   printf '\n'
 
-  printf 'test-%s:\n' "$MODULE"
-  printf '.PHONY: test-%s\n' "$MODULE"
-  printf 'test: test-%s\n' "$MODULE"
+  printf '.PHONY: %s-test\n' "$MODULE"
+  printf '%s-test: $(MODULE_TESTS.%s)\n' "$MODULE" "$MODULE"
+  printf 'test: %s-test\n' "$MODULE"
   printf '\n'
 }
 
@@ -228,11 +270,15 @@ build_makefile() {
     DEPEND="${TARGET_DEPEND_DIR:?}/m$MODULE.a"
     TEST_DEPEND="${TARGET_DEPEND_DIR:?}/t$MODULE.a"
     LIBRARY="${TARGET_LIBRARY_DIR:?}/lib$MODULE.a"
-    MODULE_DIR="$BUILD_SOURCE_DIR/$MODULE"
+    MODULE_DIR="${BUILD_SOURCE_DIR:?}/$MODULE"
     GENERATED_SOURCE_DIR="$TARGET_SOURCE_DIR/$MODULE"
     GENERATED_INCLUDE_DIR="$TARGET_INCLUDE_DIR/$MODULE"
+    MODULE_TEMP_DIR="$TARGET_TEMP_DIR/$MODULE"
+    TEST_TEMP_DIR="$TARGET_TEMP_DIR/$MODULE/test"
+    TEST_BIN_DIR="$TARGET_TEST_BINARY_DIR/$MODULE"
     readonly MODULE DEPEND TEST_DEPEND LIBRARY MODULE_DIR
     readonly GENERATED_SOURCE_DIR GENERATED_SOURCE_DIR
+    readonly TEST_TEMP_DIR TEST_BIN_DIR
 
     cd "$MODULE_DIR"
     if [ -f module ]; then . ./module; fi
@@ -241,7 +287,7 @@ build_makefile() {
 
     if [ -z "$SOURCES" -a -z "$OBJECTS" ]; then SOURCES=*.c; fi
     for MEMBER_SOURCE in $SOURCES; do
-      OBJECT "$(basename $MEMBER_SOURCE .c).o" "$MEMBER_SOURCE"
+      OBJECT "${MEMBER_SOURCE%.c}.o" "$MEMBER_SOURCE"
     done
 
     build_module_target
@@ -249,6 +295,7 @@ build_makefile() {
 
   # Put variable definitions first and rules second
   echo "$MAKEFILE" | build_variable_filter
+  echo
   echo "$MAKEFILE" | build_rules_filter
 
   build_postlude
