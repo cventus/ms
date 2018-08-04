@@ -213,7 +213,7 @@ build_directories() {
 
 build_prelude() {
   # Prelude rules
-  printf '.POSIX:\n.SUFFIXES:\n'
+  printf '.SUFFIXES:\n'
   printf 'all:\nclean: clean-dep clean-lib clean-bin\n'
   printf 'clean-dep: ; rm -f %s/*\n' "${TARGET_DEPEND_DIR:?}"
   printf 'clean-lib: ; rm -f %s/*\n' "${TARGET_LIBRARY_DIR:?}"
