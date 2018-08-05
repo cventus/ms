@@ -1,2 +1,2 @@
-LINKER	-lm
-BINARY
+LINKER="-lm"
+binary

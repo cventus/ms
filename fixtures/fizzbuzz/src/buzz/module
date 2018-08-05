@@ -1,2 +1,2 @@
-REQUIRE	rules
-SOURCE	buzz.c
+REQUIRE=rules
+SOURCES=buzz.c

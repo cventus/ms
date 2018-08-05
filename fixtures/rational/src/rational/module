@@ -1,4 +1,4 @@
-HEADER rational.h
+HEADERS=rational.h
 
 cpp_macros() {
   echo "-D TYPE=\"$1\" -D UTYPE=\"$2\" -D TYPE_PFX=\"$3\" -D UTYPE_MAX=\"$4\""

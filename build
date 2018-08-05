@@ -2,9 +2,36 @@
 
 set -e
 
+# Make "append FOO item1 item2 ..." available for list like variable FOO
+decl_list()
+{
+  eval "${1}_append() {
+    $1=\"\$$1\${$1:+ }\$*\";
+  }"
+}
+
+def_list()
+{
+  eval "$1=\"\""
+  decl_list "$1"
+}
+
+append()
+{
+  append_arg_=$1
+  shift
+  "${append_arg_}_append" "$@"
+}
+
+decl_list MODULES
+
+# Initialize with build configuration
 if [ -f "${BUILD_CONFIG:=./build.conf}" ]; then . "$BUILD_CONFIG"; fi
 
-MODULES="${MODULES:?Build modules not defined in environment or $BUILD_CONFIG}"
+if [ -z "$MODULES" ]; then
+  echo "Build modules not defined in environment or $BUILD_CONFIG" >&2
+  exit 1
+fi
 readonly MODULES
 
 case "${BUILD_SOURCE_DIR:=src}" in
@@ -31,19 +58,26 @@ readonly TARGET_TEST_BINARY_DIR="$TARGET_NAME/test"
 readonly TARGET_SOURCE_DIR="$TARGET_NAME/src"
 readonly TARGET_INCLUDE_DIR="$TARGET_NAME/include"
 
-# module definition API
-BINARY() { BINNAME="${1:-$MODULE}"; }
-SOURCE() { SOURCES="$SOURCES $@"; }
-HEADER() { HEADERS="$HEADERS $@"; }
-LINKER() { LIBRARIES="$LIBRARIES $@"; }
-TEST() { TESTS="$TESTS $@"; }
-REQUIRE() { REQUIREMENTS="$REQUIREMENTS $@"; }
+# Module specific lists, defined when module configuration is sourced
+def_list SOURCES
+def_list OBJECTS
+def_list HEADERS
+def_list REQUIRE
+def_list LINKER
+def_list TESTS
+
+BINARY=
+
+require() { append REQUIRE "$@"; }
+binary() { BINARY="${1:-$MODULE}"; }
+
 OBJECT()
 {
   MEMBER="${1%.o}"
   MEMBER_SOURCE="$MODULE_DIR/$2"
   shift 2
-  OBJECTS="$OBJECTS $MEMBER.o"
+
+  append OBJECTS $MEMBER.o
 
   build_cc_target "$LIBRARY($MEMBER.o)" "$MEMBER_SOURCE"
   build_object_recipe "$MODULE_TEMP_DIR/$MEMBER.o" "$DEPEND" \
@@ -160,15 +194,16 @@ build_lib_target() {
 }
 
 build_module_bin_target() {
-  printf '%s: %s\n\n' "$MODULE" "$TARGET_BINARY_DIR/$BINNAME"
+  printf '%s: %s\n\n' "$MODULE" "$TARGET_BINARY_DIR/$BINARY"
 
-  if [ "$BINNAME" != "$MODULE" ]; then
-    printf '%s: %s\n' "$BINNAME" "$TARGET_BINARY_DIR/$BINNAME"
-    printf '.PHONY: %s\n' "$BINNAME"
+  if [ "$BINARY" != "$MODULE" ]; then
+    printf '%s: %s\n' "$BINARY" \
+      "$TARGET_BINARY_DIR/$BINARY"
+    printf '.PHONY: %s\n' "$BINARY"
   fi
 
-  build_ld_target "$TARGET_BINARY_DIR/$BINNAME" "$LIBRARY"
-  build_ld_recipe "$LIBRARY" -o "\"$TARGET_BINARY_DIR/$BINNAME\""
+  build_ld_target "$TARGET_BINARY_DIR/$BINARY" "$LIBRARY"
+  build_ld_recipe "$LIBRARY" -o "\"$TARGET_BINARY_DIR/$BINARY\""
   build_end_target
 }
 
@@ -179,7 +214,7 @@ build_module_target() {
   printf 'all: %s\n\n' "$MODULE"
 
   build_lib_target
-  if [ -n "$BINNAME" ]; then build_module_bin_target; fi
+  if [ "$BINARY" ]; then build_module_bin_target; fi
 }
 
 build_mkdir() { if [ ! -d "$1" ]; then mkdir "$1"; fi; }
@@ -229,27 +264,30 @@ build_postlude() {
 
 build_module_variables() {
   printf 'MODULE_LINK.%s =' "$MODULE"
-  for R in $REQUIREMENTS; do
-    printf ' %s/lib%s.a $(MODULE_LINK.%s)' "$TARGET_LIBRARY_DIR" "$R" "$R"
-  done
-
-  printf '\nMODULE_LDFLAGS.%s = %s' "$MODULE" "$LIBRARIES"
-  if [ "$REQUIREMENTS" ]; then
-    printf ' -l%s' $REQUIREMENTS
-    printf ' $(MODULE_LDFLAGS.%s)' $REQUIREMENTS
+  if [ "$REQUIRE" ]; then
+    printf " $TARGET_LIBRARY_DIR/lib%s.a" $REQUIRE
+    printf ' $(MODULE_LINK.%s)' $REQUIRE
   fi
-  printf '\n'
+
+  printf '\nMODULE_LDFLAGS.%s = %s' "$MODULE" "$LINKER"
+  if [ "$REQUIRE" ]; then
+    printf ' -l%s' $REQUIRE
+    printf ' $(MODULE_LDFLAGS.%s)' $REQUIRE
+  fi
 
   printf '\nMODULE_TESTS.%s =' "$MODULE"
-  printf ' %s' $TESTS
-  printf '\n'
+  if [ "$TESTS" ]; then
+    printf ' %s' $TESTS
+  fi
 
   printf '\nMODULE_HEADERS.%s =' "$MODULE"
-  if [ "$HEADERS" ]; then printf " $TARGET_INCLUDE_DIR/%s" $HEADERS; fi
-  if [ "$REQUIREMENTS" ]; then printf ' $(MODULE_HEADERS.%s)' $REQUIREMENTS; fi
-  printf '\n'
-
-  printf '.PHONY: %s-test\n' "$MODULE"
+  if [ "$HEADERS" ]; then
+    printf " $TARGET_INCLUDE_DIR/%s" $HEADERS
+  fi
+  if [ "$REQUIRE" ]; then
+    printf ' $(MODULE_HEADERS.%s)' $REQUIRE
+  fi
+  printf '\n.PHONY: %s-test\n' "$MODULE"
   printf '%s-test: $(MODULE_TESTS.%s)\n' "$MODULE" "$MODULE"
   printf 'test: %s-test\n' "$MODULE"
   printf '\n'
@@ -260,35 +298,29 @@ build_variable_filter() { sed -n "/${BUILD_VARIABLE_RE}/p"; }
 build_rules_filter() { sed "/${BUILD_VARIABLE_RE}/d"; }
 
 build_makefile() {
-  unset BINNAME REQUIREMENTS SOURCES OBJECTS LIBRARIES TESTS HEADERS
-
   build_prelude
 
   # Produce all normal rules (each ``module'' file evaluated in independent
   # sub-shell)
   MAKEFILE=$(for MODULE in $MODULES; do (
-    DEPEND="${TARGET_DEPEND_DIR:?}/m$MODULE.a"
-    TEST_DEPEND="${TARGET_DEPEND_DIR:?}/t$MODULE.a"
-    LIBRARY="${TARGET_LIBRARY_DIR:?}/lib$MODULE.a"
-    MODULE_DIR="${BUILD_SOURCE_DIR:?}/$MODULE"
-    GENERATED_SOURCE_DIR="$TARGET_SOURCE_DIR/$MODULE"
-    GENERATED_INCLUDE_DIR="$TARGET_INCLUDE_DIR/$MODULE"
-    MODULE_TEMP_DIR="$TARGET_TEMP_DIR/$MODULE"
-    TEST_TEMP_DIR="$TARGET_TEMP_DIR/$MODULE/test"
-    TEST_BIN_DIR="$TARGET_TEST_BINARY_DIR/$MODULE"
-    readonly MODULE DEPEND TEST_DEPEND LIBRARY MODULE_DIR
-    readonly GENERATED_SOURCE_DIR GENERATED_SOURCE_DIR
-    readonly TEST_TEMP_DIR TEST_BIN_DIR
+    readonly MODULE
+    readonly MODULE_DIR="${BUILD_SOURCE_DIR:?}/$MODULE"
+    readonly DEPEND="${TARGET_DEPEND_DIR:?}/mk$MODULE.a"
+    readonly TEST_DEPEND="${TARGET_DEPEND_DIR:?}/test-mk$MODULE.a"
+    readonly LIBRARY="${TARGET_LIBRARY_DIR:?}/lib$MODULE.a"
+    readonly GENERATED_SOURCE_DIR="$TARGET_SOURCE_DIR/$MODULE"
+    readonly GENERATED_INCLUDE_DIR="$TARGET_INCLUDE_DIR/$MODULE"
+    readonly MODULE_TEMP_DIR="$TARGET_TEMP_DIR/$MODULE"
+    readonly TEST_TEMP_DIR="$TARGET_TEMP_DIR/$MODULE/test"
+    readonly TEST_BIN_DIR="$TARGET_TEST_BINARY_DIR/$MODULE"
 
     cd "$MODULE_DIR"
     if [ -f module ]; then . ./module; fi
 
     build_module_variables
 
-    if [ -z "$SOURCES" -a -z "$OBJECTS" ]; then SOURCES=*.c; fi
-    for MEMBER_SOURCE in $SOURCES; do
-      OBJECT "${MEMBER_SOURCE%.c}.o" "$MEMBER_SOURCE"
-    done
+    if [ -z "$SOURCES$OBJECTS" ]; then append SOURCES *.c; fi
+    for S in $SOURCES; do OBJECT "${S%.c}.o" "$S"; done
 
     build_module_target
   ) || exit 1; done)

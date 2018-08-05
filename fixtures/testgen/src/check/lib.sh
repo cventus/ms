@@ -3,8 +3,8 @@ export NM=${NM:-nm}
 
 # Define a test with an auto-generated main function which
 # calls all functions named "test_*"
-# check [<name>] <source>.c [CC options]
-CHECK()
+# addcheck [<name>] <source>.c [CC options]
+addcheck()
 {
   CHECK_SOURCE="$MODULE_DIR/$1"
   CHECK_NAME=$(basename "$CHECK_SOURCE" .c)
@@ -18,7 +18,7 @@ CHECK()
   CHECK_GENOBJ="$TEST_TEMP_DIR/${CHECK_NAME}_check.o"
   CHECK_BINARY="$TEST_BIN_DIR/$CHECK_NAME"
 
-  TEST "$CHECK_BINARY"
+  append TESTS "$CHECK_BINARY"
 
   build_bin_target \
     "$CHECK_BINARY" \
@@ -52,5 +52,5 @@ awk -f \"$BUILD_SOURCE_DIR/check/checkgen.awk\" \
     "$CHECK_GENSRC" \
     "$CHECK_GENOBJ"
 
-  echo
+  build_end_target
 }

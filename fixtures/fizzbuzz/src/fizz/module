@@ -1,2 +1,2 @@
-REQUIRE	rules
+require rules
 OBJECT	fizz.o fizz.c

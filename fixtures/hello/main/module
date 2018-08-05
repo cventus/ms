@@ -1,2 +1,2 @@
-SOURCE	main.c
-BINARY	greet
+SOURCES=main.c
+BINARY=greet
