@@ -154,12 +154,6 @@ build_ld_recipe()
     "$*"
 }
 
-# 1: Makefile target name, 2: Output file
-build_depend_flags()
-{
-  echo -MMD -MP -MT "\"$1"\" -MF "\"$2"\"
-}
-
 # <archive> <member>
 build_ar_recipe()
 {
@@ -177,7 +171,7 @@ build_object_recipe()
   shift 4
 
   build_cc_recipe "$@" \
-    $(build_depend_flags "$TARGET_" "$MKFILE_") \
+    -MMD -MP -MT "\"$TARGET_"\" -MF "\"$MKFILE_"\" \
     -c "\"$SOURCE_"\" \
     -o "\"$OBJECT_"\"
 
