@@ -71,7 +71,7 @@ BINARY=
 require() { append REQUIRE "$@"; }
 binary() { BINARY="${1:-$MODULE}"; }
 
-OBJECT()
+define_object()
 {
   MEMBER="${1%.o}"
   MEMBER_SOURCE="$MODULE_DIR/$2"
@@ -307,7 +307,7 @@ build_makefile() {
     build_module_variables
 
     if [ -z "$SOURCES$OBJECTS" ]; then append SOURCES *.c; fi
-    for S in $SOURCES; do OBJECT "${S%.c}.o" "$S"; done
+    for S in $SOURCES; do define_object "${S%.c}.o" "$S"; done
 
     build_module_targets
   ) || exit 1; done)

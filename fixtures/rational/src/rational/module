@@ -5,7 +5,7 @@ cpp_macros() {
 }
 
 specialize_object() {
-  OBJECT "${3}rat" rat.c $(cpp_macros "$@")
+  define_object "${3}rat" rat.c $(cpp_macros "$@")
 }
 
 specialize_header() {

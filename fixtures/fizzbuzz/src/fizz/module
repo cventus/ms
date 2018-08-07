@@ -1,2 +1,2 @@
 require rules
-OBJECT	fizz.o fizz.c
+define_object fizz.o fizz.c
