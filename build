@@ -12,7 +12,7 @@ decl_list()
 
 def_list()
 {
-  eval "$1=\"\""
+  eval "$1=''"
   decl_list "$1"
 }
 
@@ -86,44 +86,7 @@ OBJECT()
   build_rm_recipe "$MODULE_TEMP_DIR/$MEMBER.o"
 }
 
-# Makefile rule generation
-build_sh_recipe()
-{
-  printf '\t%s\n' "$*"
-}
-
-build_rm_recipe()
-{
-  printf '\trm -f %s\n' "$*"
-}
-
-build_cc_recipe()
-{
-  printf '\t$(CC) $(CFLAGS) $(CPPFLAGS) -I"%s" -I"%s" %s\n' \
-    "$TARGET_INCLUDE_DIR" "$BUILD_INCLUDE_DIR" "$*"
-}
-
 # Invoke the compiler with paths and module linkage included
-build_end_target()
-{
-  echo
-}
-
-build_ld_recipe()
-{
-  printf "\t\
-\$(CC) \$(CFLAGS) \$(LDFLAGS) \
--L$TARGET_LIBRARY_DIR %s \
-\$(MODULE_LDFLAGS.$MODULE)\n" \
-    "$*"
-}
-
-# 1: Makefile target name, 2: Output file
-build_depend_flags()
-{
-  echo -MMD -MP -MT "\"$1"\" -MF "\"$2"\"
-}
-
 build_source_target()
 {
   TARGET_=$1
@@ -160,6 +123,43 @@ build_bin_target()
     "$TARGET_" "$*" "$MODULE" "$MODULE"
 }
 
+build_end_target()
+{
+  echo
+}
+
+# Makefile rule generation
+build_sh_recipe()
+{
+  printf '\t%s\n' "$*"
+}
+
+build_rm_recipe()
+{
+  printf '\trm -f %s\n' "$*"
+}
+
+build_cc_recipe()
+{
+  printf '\t$(CC) $(CFLAGS) $(CPPFLAGS) -I"%s" -I"%s" %s\n' \
+    "$TARGET_INCLUDE_DIR" "$BUILD_INCLUDE_DIR" "$*"
+}
+
+build_ld_recipe()
+{
+  printf "\t\
+\$(CC) \$(CFLAGS) \$(LDFLAGS) \
+-L$TARGET_LIBRARY_DIR %s \
+\$(MODULE_LDFLAGS.$MODULE)\n" \
+    "$*"
+}
+
+# 1: Makefile target name, 2: Output file
+build_depend_flags()
+{
+  echo -MMD -MP -MT "\"$1"\" -MF "\"$2"\"
+}
+
 # <archive> <member>
 build_ar_recipe()
 {
@@ -185,36 +185,29 @@ build_object_recipe()
   build_rm_recipe "$MKFILE_"
 }
 
-# target/lib/libfoo.a: target/lib/libfoo.a(bar.o baz.o)
-#         $(AR) -s target/lib/libfoo.a
-build_lib_target() {
-  printf '%s: %s( ' "$LIBRARY" "$LIBRARY"
-  printf '\\\n\t%s ' $OBJECTS
-  printf ')\n\t$(AR) -s "%s"\n\n' "$LIBRARY"
-}
-
-build_module_bin_target() {
-  printf '%s: %s\n\n' "$MODULE" "$TARGET_BINARY_DIR/$BINARY"
-
-  if [ "$BINARY" != "$MODULE" ]; then
-    printf '%s: %s\n' "$BINARY" \
-      "$TARGET_BINARY_DIR/$BINARY"
-    printf '.PHONY: %s\n' "$BINARY"
-  fi
-
-  build_ld_target "$TARGET_BINARY_DIR/$BINARY" "$LIBRARY"
-  build_ld_recipe "$LIBRARY" -o "\"$TARGET_BINARY_DIR/$BINARY\""
-  build_end_target
-}
-
-build_module_target() {
+build_module_targets() {
   printf '%s: %s\n\n' "$MODULE" "$LIBRARY"
   printf '%s: %s\n\n' "lib$MODULE.a" "$LIBRARY"
   printf '.PHONY: %s %s\n\n' "$MODULE" "lib$MODULE.a"
   printf 'all: %s\n\n' "$MODULE"
 
-  build_lib_target
-  if [ "$BINARY" ]; then build_module_bin_target; fi
+  printf '%s: %s( ' "$LIBRARY" "$LIBRARY"
+  printf '\\\n\t%s ' $OBJECTS
+  printf ')\n\t$(AR) -s "%s"\n\n' "$LIBRARY"
+
+  if [ "$BINARY" ]; then
+    printf '%s: %s\n\n' "$MODULE" "$TARGET_BINARY_DIR/$BINARY"
+
+    if [ "$BINARY" != "$MODULE" ]; then
+      printf '%s: %s\n' "$BINARY" \
+        "$TARGET_BINARY_DIR/$BINARY"
+      printf '.PHONY: %s\n' "$BINARY"
+    fi
+
+    build_ld_target "$TARGET_BINARY_DIR/$BINARY" "$LIBRARY"
+    build_ld_recipe "$LIBRARY" -o "\"$TARGET_BINARY_DIR/$BINARY\""
+    build_end_target
+  fi
 }
 
 build_mkdir() { if [ ! -d "$1" ]; then mkdir "$1"; fi; }
@@ -276,17 +269,11 @@ build_module_variables() {
   fi
 
   printf '\nMODULE_TESTS.%s =' "$MODULE"
-  if [ "$TESTS" ]; then
-    printf ' %s' $TESTS
-  fi
+  [ "$TESTS" ] && printf ' %s' $TESTS
 
   printf '\nMODULE_HEADERS.%s =' "$MODULE"
-  if [ "$HEADERS" ]; then
-    printf " $TARGET_INCLUDE_DIR/%s" $HEADERS
-  fi
-  if [ "$REQUIRE" ]; then
-    printf ' $(MODULE_HEADERS.%s)' $REQUIRE
-  fi
+  [ "$HEADERS" ] && printf " $TARGET_INCLUDE_DIR/%s" $HEADERS
+  [ "$REQUIRE" ] && printf ' $(MODULE_HEADERS.%s)' $REQUIRE
   printf '\n.PHONY: %s-test\n' "$MODULE"
   printf '%s-test: $(MODULE_TESTS.%s)\n' "$MODULE" "$MODULE"
   printf 'test: %s-test\n' "$MODULE"
@@ -322,7 +309,7 @@ build_makefile() {
     if [ -z "$SOURCES$OBJECTS" ]; then append SOURCES *.c; fi
     for S in $SOURCES; do OBJECT "${S%.c}.o" "$S"; done
 
-    build_module_target
+    build_module_targets
   ) || exit 1; done)
 
   # Put variable definitions first and rules second
