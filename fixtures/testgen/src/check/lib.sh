@@ -21,28 +21,28 @@ addcheck()
 
   append TESTS "$CHECK_BINARY"
 
-  build_bin_target \
+  target_bin \
     "$CHECK_BINARY" \
     "$CHECK_SOURCE" \
     "$LIBRARY" \
     "$TARGET_LIBRARY_DIR/libcheck.a"
 
-  build_object_recipe "$CHECK_OBJECT" "$CHECK_SOURCE" "$@"
+  object_cmd "$CHECK_OBJECT" "$CHECK_SOURCE" "$@"
 
   # Add source dependencies to archive
-  build_ar_recipe "$CHECK_DEPEND" "${CHECK_OBJECT%.o}.d"
+  ar_cmd "$CHECK_DEPEND" "${CHECK_OBJECT%.o}.d"
 
   # Generate stubs and test list based on which symbols were defined
-  build_sh_recipe \
+  sh_cmd \
     '$(NM)' -PA $CHECK_OBJECT \| \
     awk -f $BUILD_SOURCE_DIR/check/checkgen.awk \
     \>$CHECK_GENSRC
 
   # Compile generated source
-  build_cc_recipe -c "$CHECK_GENSRC" -o "$CHECK_GENOBJ"
+  cc_cmd -c "$CHECK_GENSRC" -o "$CHECK_GENOBJ"
 
   # Link test executable
-  build_ld_recipe \
+  ld_cmd \
     -o "\"$CHECK_BINARY"\" \
     "\"$CHECK_OBJECT"\" \
     "\"$CHECK_GENOBJ"\" \
@@ -50,11 +50,11 @@ addcheck()
     -l$MODULE
 
   # Remove temporary files
-  build_rm_recipe \
+  rm_cmd \
     "$CHECK_OBJECT" \
     "${CHECK_OBJECT%.o}.d" \
     "$CHECK_GENSRC" \
     "$CHECK_GENOBJ"
 
-  build_end_target
+  end_target
 }

@@ -9,9 +9,9 @@ specialize_object() {
 }
 
 specialize_header() {
-  build_source_target "${3}rat.h" "$MODULE_DIR/rat.h"
-  build_cc_recipe -E -C $(cpp_macros "$@") '"$?" >"$@"'
-  echo
+  target_source "${3}rat.h" "$MODULE_DIR/rat.h"
+  cc_cmd -E -C $(cpp_macros "$@") '"$?" >"$@"'
+  end_target
 }
 
 # List integer types on fd 3
@@ -23,19 +23,21 @@ EOF
 
 # Generate object and header for each integer type
 while IFS=: read -r TYPE UTYPE TYPE_PFX UTYPE_MAX <&3; do
-  specialize_object "$TYPE" "$UTYPE" "$TYPE_PFX" "$UTYPE_MAX"
-  specialize_header "$TYPE" "$UTYPE" "$TYPE_PFX" "$UTYPE_MAX"
+  set -- "$TYPE" "$UTYPE" "$TYPE_PFX" "$UTYPE_MAX"
+  specialize_object "$@"
+  specialize_header "$@"
 done
 
 # Close fd 3
 exec 3<&-
 
-build_include_target rational.h \
-	$(printf " $GENERATED_SOURCE_DIR/%srat.h" "" l ll)
+target_include rational.h \
+  $(printf " $GENERATED_SOURCE_DIR/%srat.h" "" l ll)
 
 # Recipe for composing header from parts
-build_sh_recipe "\
-sed -n '/begin public rat.h/,/end public rat.h/p'\
-$(printf " $GENERATED_SOURCE_DIR/%srat.h" "" l ll) | \
-sed '/\\(begin\\|end\\) public rat.h/d' | \
-cat $MODULE_DIR/prolog.h - $MODULE_DIR/epilog.h >\$@"
+sh_cmd \
+  "sed -n '/begin public rat.h/,/end public rat.h/p'" \
+  "$(printf " $GENERATED_SOURCE_DIR/%srat.h" "" l ll)" \| \
+  "sed '/\\(begin\\|end\\) public rat.h/d'" \| \
+  cat $MODULE_DIR/prolog.h - $MODULE_DIR/epilog.h '>$@'
+end_target
