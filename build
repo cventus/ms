@@ -19,8 +19,10 @@ decl_list()
 
 def_list()
 {
-  eval "$1=''"
-  decl_list "$1"
+  def_list_name_=$1
+  shift
+  eval "$def_list_name_=\"$*\""
+  decl_list "$def_list_name_"
 }
 
 append()
