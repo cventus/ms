@@ -2,6 +2,8 @@
 
 set -e
 
+AR=${AR:-ar}
+
 # Make "append FOO item1 item2 ..." available for list like variable FOO
 decl_list()
 {
@@ -50,6 +52,7 @@ readonly BUILD_SOURCE_DIR BUILD_INCLUDE_DIR TARGET_NAME
 readonly TARGET_LIBRARY_DIR="$TARGET_NAME/lib"
 readonly TARGET_DEPEND_DIR="$TARGET_NAME/dep"
 readonly TARGET_BINARY_DIR="$TARGET_NAME/bin"
+readonly TARGET_OBJECT_DIR="$TARGET_NAME/obj"
 
 # Module specific test binaries
 readonly TARGET_TEST_BINARY_DIR="$TARGET_NAME/test"
@@ -79,11 +82,8 @@ define_object()
 
   append OBJECTS $MEMBER.o
 
-  build_cc_target "$LIBRARY($MEMBER.o)" "$MEMBER_SOURCE"
-  build_object_recipe "$MODULE_TEMP_DIR/$MEMBER.o" "$DEPEND" \
-    "$MODULE_TEMP_DIR/$MEMBER.o" "$MEMBER_SOURCE" "$@"
-  build_ar_recipe "$LIBRARY" "$MODULE_TEMP_DIR/$MEMBER.o"
-  build_rm_recipe "$MODULE_TEMP_DIR/$MEMBER.o"
+  build_cc_target "$MODULE_OBJECT_DIR/$MEMBER.o" "$MEMBER_SOURCE"
+  build_object_recipe "$MODULE_OBJECT_DIR/$MEMBER.o" "$MEMBER_SOURCE" "$@"
 }
 
 # Invoke the compiler with paths and module linkage included
@@ -136,7 +136,7 @@ build_sh_recipe()
 
 build_rm_recipe()
 {
-  printf '\trm -f %s\n' "$*"
+  printf '\trm -f -- %s\n' "$*"
 }
 
 build_cc_recipe()
@@ -154,29 +154,26 @@ build_ld_recipe()
     "$*"
 }
 
+# <object> <source> [<extra cc args>...]
+# Output command to compile <source> into <object> with optional extra flags.
+# Create path/to/foo.d from path/to/foo.o as a secondary output.
+build_object_recipe()
+{
+  OBJECT_="$1"
+  MKFILE_="${OBJECT_%.o}.d"
+  SOURCE_="$2"
+  shift 2
+
+  build_cc_recipe "$@" \
+    -MMD -MP -MT '$@' -MF "\"$MKFILE_"\" \
+    -c "\"$SOURCE_"\" \
+    -o "\"$OBJECT_"\"
+}
+
 # <archive> <member>
 build_ar_recipe()
 {
-  printf '\t$(AR) -rc "%s" "%s"\n' "$1" "$2"
-}
-
-# <target> <archive> <object> <source> [<extra cc args>...]
-build_object_recipe()
-{
-  TARGET_="$1"
-  ARCHIVE_="$2"
-  OBJECT_="$3"
-  MKFILE_="${OBJECT_%.o}.d"
-  SOURCE_="$4"
-  shift 4
-
-  build_cc_recipe "$@" \
-    -MMD -MP -MT "\"$TARGET_"\" -MF "\"$MKFILE_"\" \
-    -c "\"$SOURCE_"\" \
-    -o "\"$OBJECT_"\"
-
-  build_ar_recipe "$ARCHIVE_" "$MKFILE_"
-  build_rm_recipe "$MKFILE_"
+  printf '\t$(AR) -rc %s\n' "$*"
 }
 
 build_module_targets() {
@@ -185,9 +182,13 @@ build_module_targets() {
   printf '.PHONY: %s %s\n\n' "$MODULE" "lib$MODULE.a"
   printf 'all: %s\n\n' "$MODULE"
 
-  printf '%s: %s( ' "$LIBRARY" "$LIBRARY"
-  printf '\\\n\t%s ' $OBJECTS
-  printf ')\n\t$(AR) -s "%s"\n\n' "$LIBRARY"
+  printf '%s:' "$LIBRARY"
+  printf ' \\\n\t '"${MODULE_OBJECT_DIR}"'/%s' $OBJECTS
+  printf '\n'
+  build_ar_recipe -s '$@' '$?'
+  build_ar_recipe "$DEPEND" '$(?:.o=.d)'
+  build_rm_recipe '$(?:.o=.d)'
+  build_end_target
 
   if [ "$BINARY" ]; then
     printf '%s: %s\n\n' "$MODULE" "$TARGET_BINARY_DIR/$BINARY"
@@ -212,6 +213,7 @@ build_directories() {
   build_mkdir "$TARGET_LIBRARY_DIR"
   build_mkdir "$TARGET_DEPEND_DIR"
   build_mkdir "$TARGET_BINARY_DIR"
+  build_mkdir "$TARGET_OBJECT_DIR"
 
   build_mkdir "$TARGET_TEST_BINARY_DIR"
   build_mkdir "$TARGET_SOURCE_DIR"
@@ -220,6 +222,7 @@ build_directories() {
   for MODULE in $MODULES; do
     # For object and dependency files
     build_mkdir "$TARGET_TEMP_DIR/$MODULE"
+    build_mkdir "$TARGET_OBJECT_DIR/$MODULE"
 
     # For test object and dependency files
     build_mkdir "$TARGET_TEMP_DIR/$MODULE/test"
@@ -237,9 +240,9 @@ build_prelude() {
   # Prelude rules
   printf '.SUFFIXES:\n'
   printf 'all:\nclean: clean-dep clean-lib clean-bin\n'
-  printf 'clean-dep: ; rm -f %s/*\n' "${TARGET_DEPEND_DIR:?}"
-  printf 'clean-lib: ; rm -f %s/*\n' "${TARGET_LIBRARY_DIR:?}"
-  printf 'clean-bin: ; rm -f %s/*\n\n' "${TARGET_BINARY_DIR:?}"
+  printf 'clean-dep: ; rm -f -- %s/*\n' "${TARGET_DEPEND_DIR:?}"
+  printf 'clean-lib: ; rm -f -- %s/*\n' "${TARGET_LIBRARY_DIR:?}"
+  printf 'clean-bin: ; rm -f -- %s/*\n\n' "${TARGET_BINARY_DIR:?}"
   printf '.PHONY: all clean clean-dep clean-lib clean-bin\n\n'
 }
 
@@ -286,11 +289,12 @@ build_makefile() {
   MAKEFILE=$(for MODULE in $MODULES; do (
     readonly MODULE
     readonly MODULE_DIR="${BUILD_SOURCE_DIR:?}/$MODULE"
-    readonly DEPEND="${TARGET_DEPEND_DIR:?}/mk$MODULE.a"
-    readonly TEST_DEPEND="${TARGET_DEPEND_DIR:?}/test-mk$MODULE.a"
+    readonly DEPEND="${TARGET_DEPEND_DIR:?}/mk-lib$MODULE.a"
+    readonly TEST_DEPEND="${TARGET_DEPEND_DIR:?}/mk-test$MODULE.a"
     readonly LIBRARY="${TARGET_LIBRARY_DIR:?}/lib$MODULE.a"
     readonly GENERATED_SOURCE_DIR="$TARGET_SOURCE_DIR/$MODULE"
     readonly GENERATED_INCLUDE_DIR="$TARGET_INCLUDE_DIR/$MODULE"
+    readonly MODULE_OBJECT_DIR="$TARGET_OBJECT_DIR/$MODULE"
     readonly MODULE_TEMP_DIR="$TARGET_TEMP_DIR/$MODULE"
     readonly TEST_TEMP_DIR="$TARGET_TEMP_DIR/$MODULE/test"
     readonly TEST_BIN_DIR="$TARGET_TEST_BINARY_DIR/$MODULE"
@@ -315,7 +319,7 @@ build_makefile() {
 
   # Include recursive file dependencies
   if [ -d "$TARGET_DEPEND_DIR" ]; then
-    find "$TARGET_DEPEND_DIR" -name '*.a' -exec "${AR:-ar}" -p {} \;
+    find "$TARGET_DEPEND_DIR" -name '*.a' -exec $AR -p {} \;
   fi
 }
 
