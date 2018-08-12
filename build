@@ -4,11 +4,16 @@ set -e
 
 AR=${AR:-ar}
 
-# Make "append FOO item1 item2 ..." available for list like variable FOO
+# Make "append FOO item1 item2 ..." and "contains FOO item" available for list
+# like variable FOO
 decl_list()
 {
   eval "${1}_append() {
     $1=\"\$$1\${$1:+ }\$*\";
+  }"
+
+  eval "${1}_contains() {
+    expr \" \$$1 \" : \".* \$1 \" >/dev/null
   }"
 }
 
@@ -23,6 +28,13 @@ append()
   append_arg_=$1
   shift
   "${append_arg_}_append" "$@"
+}
+
+contains()
+{
+  append_arg_=$1
+  shift
+  "${append_arg_}_contains" "$@"
 }
 
 decl_list MODULES
