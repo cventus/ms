@@ -36,7 +36,13 @@ contains()
   "${contains_arg_}_contains" "$@"
 }
 
+# Make list functions available in build configuration file
 decl_list MODULES
+decl_list CFLAGS
+decl_list CPPFLAGS
+decl_list LDFLAGS
+
+export CFLAGS LDFLAGS CPPFLAGS
 
 # Initialize with build configuration
 if [ -f "${BUILD_CONFIG:=./build.conf}" ]; then . "$BUILD_CONFIG"; fi
