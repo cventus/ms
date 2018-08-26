@@ -54,17 +54,22 @@ if [ -z "$MODULES" ]; then
 fi
 readonly MODULES
 
-case "${BUILD_SOURCE_DIR:=src}" in
-(/*) ;; (*) BUILD_SOURCE_DIR="$(dirname "$BUILD_CONFIG")/$BUILD_SOURCE_DIR";;
-esac
-
-case "${BUILD_INCLUDE_DIR:=include}" in
-(/*) ;; (*) BUILD_INCLUDE_DIR="$(dirname "$BUILD_CONFIG")/$BUILD_INCLUDE_DIR";;
-esac
+# make path relative to build configuration file unless absolute
+build_path()
+{
+  if expr "$1" : "/" >/dev/null; then echo "$1"
+  else echo "$(dirname "$BUILD_CONFIG")/$1"
+  fi
+}
 
 # Variables that can be overridden in the build configuration
 : ${TARGET_NAME:=target} \
+  ${BUILD_SOURCE_DIR:=src} \
+  ${BUILD_INCLUDE_DIR:=include}
 : ${TARGET_TEMP_DIR:=$TARGET_NAME/tmp}
+
+BUILD_SOURCE_DIR=$(build_path "$BUILD_SOURCE_DIR")
+BUILD_INCLUDE_DIR=$(build_path "$BUILD_INCLUDE_DIR")
 
 readonly TARGET_NAME TARGET_TEMP_DIR BUILD_SOURCE_DIR BUILD_INCLUDE_DIR
 
