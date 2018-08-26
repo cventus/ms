@@ -96,58 +96,19 @@ require() { append REQUIRE "$@"; }
 binary() { BINARY="${1:-$MODULE}"; }
 
 # Short-hand functions for defining rules
-phony_target()
-{
-  printf '.PHONY: %s\n' "$*"
-}
-
-target_generic()
-{
-  TARGET_=$1
+target_generic() {
+  target_generic_target_=$1
   shift
-  printf '%s: %s\n' "$TARGET_" "$*"
+  printf '%s: %s\n' "$target_generic_target_" "$*"
 }
 
-target_source()
-{
-  TARGET_=$1
-  shift
-  printf '%s: %s\n' "$GENERATED_SOURCE_DIR/$TARGET_" "$*"
-}
-
-target_include()
-{
-  TARGET_=$1
-  shift
-  printf '%s: %s\n' "$TARGET_INCLUDE_DIR/$TARGET_" "$*"
-}
-
-target_cc()
-{
-  TARGET_=$1
-  shift
-  printf '%s: %s $(MODULE_HEADERS.%s)\n' "$TARGET_" "$*" "$MODULE"
-}
-
-target_ld()
-{
-  TARGET_=$1
-  shift
-  printf '%s: %s $(MODULE_LINK.%s)\n' "$TARGET_" "$*" "$MODULE"
-}
-
-target_bin()
-{
-  TARGET_=$1
-  shift
-  printf '%s: %s $(MODULE_LINK.%s) $(MODULE_HEADERS.%s)\n' \
-    "$TARGET_" "$*" "$MODULE" "$MODULE"
-}
-
-end_target()
-{
-  echo
-}
+target_phony() { target_generic .PHONY "$*"; }
+target_source() { target_generic "$GENERATED_SOURCE_DIR/$@"; }
+target_include() { target_generic "$TARGET_INCLUDE_DIR/$@"; }
+target_cc() { target_generic "$@" "\$(MODULE_HEADERS.$MODULE)"; }
+target_ld() { target_generic "$@" "\$(MODULE_LINK.$MODULE)"; }
+target_bin() { target_cc "$@" "\$(MODULE_LINK.$MODULE)"; }
+end_target() { printf '\n'; }
 
 # Functions for adding rule commands
 sh_cmd()
