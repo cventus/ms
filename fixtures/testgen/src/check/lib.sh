@@ -30,7 +30,7 @@ addcheck()
   object_cmd "$CHECK_OBJECT" "$CHECK_SOURCE" "$@"
 
   # Add source dependencies to archive
-  ar_cmd "$CHECK_DEPEND" "${CHECK_OBJECT%.o}.d"
+  ar_cmd "$CHECK_DEPEND" "$CHECK_OBJECT.d"
 
   # Generate stubs and test list based on which symbols were defined
   sh_cmd \
@@ -52,7 +52,7 @@ addcheck()
   # Remove temporary files
   rm_cmd \
     "$CHECK_OBJECT" \
-    "${CHECK_OBJECT%.o}.d" \
+    "$CHECK_OBJECT.d" \
     "$CHECK_GENSRC" \
     "$CHECK_GENOBJ"
 

@@ -82,6 +82,9 @@ readonly TARGET_TEST_BINARY_DIR="$TARGET_NAME/test"
 readonly TARGET_SOURCE_DIR="$TARGET_NAME/src"
 readonly TARGET_INCLUDE_DIR="$TARGET_NAME/include"
 
+readonly INCLUDE_FLAGS="-I$TARGET_INCLUDE_DIR -I$BUILD_INCLUDE_DIR"
+readonly DEPEND_FLAGS='-MMD -MP -MT $@ -MF'
+
 # Module specific lists, defined when module configuration is sourced
 def_list SOURCES
 def_list OBJECTS
@@ -111,56 +114,51 @@ target_bin() { target_cc "$@" "\$(MODULE_LINK.$MODULE)"; }
 end_target() { printf '\n'; }
 
 # Functions for adding rule commands
-sh_cmd()
-{
-  printf '\t%s\n' "$*"
+sh_cmd() { printf '\t%s\n' "$*"; }
+rm_cmd() { sh_cmd rm -f -- "$*"; }
+ar_cmd() { sh_cmd '$(AR)' -rc "$*"; }
+
+# Output command to compile a single source file (add neccessary compilation
+# and preprocessor flags).
+# Usage: cc_cmd <cc args>...
+cc_cmd() { sh_cmd '$(CC) $(CFLAGS) $(CPPFLAGS)' "$INCLUDE_FLAGS" "$*"; }
+
+# Output command to compile a single source file (add neccessary compilation
+# and preprocessor flags) and generate makefile rules at the specified path at
+# the same time.
+# Usage: ccmk_cmd <makefile rules path> <cc args>...
+ccmk_cmd() { cc_cmd "$DEPEND_FLAGS" "$@"; }
+
+# Output command to compile and link a single source file (add neccessary
+# linkage flags).
+# Usage: ld_cmd <cc args>...
+ld_cmd() {
+  sh_cmd \
+    '$(CC) $(CFLAGS) $(LDFLAGS)' \
+    "-L$TARGET_LIBRARY_DIR" "$*" \
+    "\$(MODULE_LDFLAGS.$MODULE)"
 }
 
-rm_cmd()
-{
-  printf '\trm -f -- %s\n' "$*"
+# Output command to compile and link a single source file (add neccessary
+# linkage flags) and generate makefile rules at the specified path at the same
+# time.
+# Usage: ldmk_cmd <makefile rules path> <source file> [<cc args>...]
+ldmk_cmd() { ld_cmd "$INCLUDE_FLAGS" "$DEPEND_FLAGS" "$@"; }
+
+# Output command to compile a source file into an object with optional extra
+# compiler flags (with default compilation flags) and generate makefile rules
+# in the same directory as the object file (with a ".d" appended to the
+# object's path name.
+# Usage: object_cmd <target object> <source file> [<cc args>...]
+object_cmd() {
+  object_cmd_obj_="$1"
+  shift 1
+  ccmk_cmd "$object_cmd_obj_.d" -o "$object_cmd_obj_" -c "$@"
 }
 
-cc_cmd()
-{
-  printf '\t$(CC) $(CFLAGS) $(CPPFLAGS) -I"%s" -I"%s" %s\n' \
-    "$TARGET_INCLUDE_DIR" "$BUILD_INCLUDE_DIR" "$*"
-}
-
-ld_cmd()
-{
-  printf "\t\
-\$(CC) \$(CFLAGS) \$(LDFLAGS) \
--L$TARGET_LIBRARY_DIR %s \
-\$(MODULE_LDFLAGS.$MODULE)\n" \
-    "$*"
-}
-
-# <object> <source> [<extra cc args>...]
-# Output command to compile <source> into <object> with optional extra flags.
-# Create path/to/foo.d from path/to/foo.o as a secondary output.
-object_cmd()
-{
-  OBJECT_="$1"
-  MKFILE_="${OBJECT_%.o}.d"
-  SOURCE_="$2"
-  shift 2
-
-  cc_cmd "$@" \
-    -MMD -MP -MT '$@' -MF "\"$MKFILE_"\" \
-    -c "\"$SOURCE_"\" \
-    -o "\"$OBJECT_"\"
-}
-
-# <archive> [<member> ...]
-ar_cmd()
-{
-  printf '\t$(AR) -rc %s\n' "$*"
-}
-
-#
-define_object()
-{
+# Output a makefile rule to compile an object for a module.
+# Usage: define_object <object> <source> [<cc flags> ...]
+define_object() {
   MEMBER="${1%.o}"
   MEMBER_SOURCE="$MODULE_DIR/$2"
   shift 2
@@ -168,8 +166,12 @@ define_object()
   append OBJECTS $MEMBER.o
 
   target_cc "$MODULE_OBJECT_DIR/$MEMBER.o" "$MEMBER_SOURCE"
-  object_cmd "$MODULE_OBJECT_DIR/$MEMBER.o" "$MEMBER_SOURCE" "$@"
-}
+    object_cmd "$MODULE_OBJECT_DIR/$MEMBER.o" "$MEMBER_SOURCE" "$@"
+  end_target
+
+
+
+
 
 define_module_targets() {
   target_generic all "$MODULE"
@@ -189,11 +191,11 @@ define_module_targets() {
 
     if [ "$BINARY" != "$MODULE" ]; then
       target_generic "$BINARY" "$TARGET_BINARY_DIR/$BINARY"
-      phony_target "$BINARY"
+      target_phony "$BINARY"
     fi
 
     target_ld "$TARGET_BINARY_DIR/$BINARY" "$LIBRARY"
-    ld_cmd "$LIBRARY" -o "\"$TARGET_BINARY_DIR/$BINARY\""
+      ld_cmd "$LIBRARY" -o "$TARGET_BINARY_DIR/$BINARY"
     end_target
   fi
 }
