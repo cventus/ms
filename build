@@ -340,7 +340,9 @@ build_makefile() {
 
   # Include source header dependencies
   if [ -d "$TARGET_DEPEND_DIR" ]; then
-    find "$TARGET_DEPEND_DIR" -name '*.a' -exec $AR -p {} \;
+    find "$TARGET_DEPEND_DIR" \
+      -name '*.a' -exec $AR -p {} \; -o \
+      -name '*.d' -exec cat {} \;
   fi
 
   makefile_epilog
