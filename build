@@ -7,31 +7,27 @@ set -e
 
 # Make "append FOO item1 item2 ..." and "contains FOO item" available for list
 # like variable FOO
-decl_list()
-{
+decl_list() {
   eval "
     ${1}_append() { $1=\"\$$1\${$1:+ }\$*\"; }
     ${1}_contains() { expr \" \$$1 \" : \".* \$1 \" >/dev/null; }
   "
 }
 
-def_list()
-{
+def_list() {
   def_list_name_=$1
   shift
   eval "$def_list_name_=\"$*\""
   decl_list "$def_list_name_"
 }
 
-append()
-{
+append() {
   append_arg_=$1
   shift
   "${append_arg_}_append" "$@"
 }
 
-contains()
-{
+contains() {
   contains_arg_=$1
   shift
   "${contains_arg_}_contains" "$@"
@@ -65,8 +61,7 @@ fi
 readonly MODULES
 
 # make path relative to build configuration file unless absolute
-build_path()
-{
+build_path() {
   if expr "$1" : "/" >/dev/null; then echo "$1"
   else echo "$(dirname "$BUILD_CONFIG")/$1"
   fi
