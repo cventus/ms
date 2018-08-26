@@ -8,13 +8,10 @@ AR=${AR:-ar}
 # like variable FOO
 decl_list()
 {
-  eval "${1}_append() {
-    $1=\"\$$1\${$1:+ }\$*\";
-  }"
-
-  eval "${1}_contains() {
-    expr \" \$$1 \" : \".* \$1 \" >/dev/null
-  }"
+  eval "
+    ${1}_append() { $1=\"\$$1\${$1:+ }\$*\"; }
+    ${1}_contains() { expr \" \$$1 \" : \".* \$1 \" >/dev/null; }
+  "
 }
 
 def_list()
@@ -34,9 +31,9 @@ append()
 
 contains()
 {
-  append_arg_=$1
+  contains_arg_=$1
   shift
-  "${append_arg_}_contains" "$@"
+  "${contains_arg_}_contains" "$@"
 }
 
 decl_list MODULES
