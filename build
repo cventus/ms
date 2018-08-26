@@ -281,6 +281,7 @@ build_directories() {
 
 makefile_prolog() {
   target_generic all
+  target_generic test
   target_generic clean
     sh_cmd find "$TARGET_NAME" -type f -exec rm -- {} '\;'
   end_target
