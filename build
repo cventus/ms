@@ -316,7 +316,7 @@ build_makefile() {
     readonly TEST_BIN_DIR="$TARGET_TEST_BINARY_DIR/$MODULE"
 
     cd "$MODULE_DIR"
-    if [ -f module ]; then . ./module; fi
+    if [ -f module ]; then . ../$MODULE/module; fi
     for cmd in $RUN_ON_MODULE; do $cmd; done
   ) || exit 1; done | awk '
   # Place variable definitions first and rules second
