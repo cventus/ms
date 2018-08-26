@@ -311,16 +311,12 @@ build_module_variables() {
   printf '\n'
 }
 
-readonly BUILD_VARIABLE_RE='^MODULE_\(LINK\|LDFLAGS\|HEADERS\|TESTS\)\.[^= ]* ='
-build_variable_filter() { sed -n "/${BUILD_VARIABLE_RE}/p"; }
-build_rules_filter() { sed "/${BUILD_VARIABLE_RE}/d"; }
-
 build_makefile() {
   makefile_prelude
 
-  # Produce all normal rules (each ``module'' file evaluated in independent
+  # Produce all normal rules (each ``module'' file evaluated in an independent
   # sub-shell)
-  MAKEFILE=$(for MODULE in $MODULES; do (
+  for MODULE in $MODULES; do (
     readonly MODULE
     readonly MODULE_DIR="${BUILD_SOURCE_DIR:?}/$MODULE"
     readonly DEPEND="${TARGET_DEPEND_DIR:?}/mk-lib$MODULE.a"
@@ -341,14 +337,27 @@ build_makefile() {
     for S in $SOURCES; do define_object "${S%.c}.o" "$S"; done
 
     define_module_targets
-  ) || exit 1; done)
+  ) || exit 1; done | awk '
+  # Place variable definitions first and rules second
+  {
+    # Somewhat liberal variable parsing: expect no leading tab, equals sign
+    # before the first colon; does not recognize variables with escaped
+    # newlines before the equals sign.
+    if (/^[^\t][^:=]*=/ || enl == 1) {
+      print;
+      enl = /\\$/ ? 1 : 0;
+    } else {
+      rules[n++] = $0;
+      enl = /\\$/ ? -1 : 0;
+    }
+  }
+  END {
+    # Leave a blank line between variables and rules
+    print "";
+    for (i = 0; i < n; i++) print rules[i];
+  }'
 
-  # Put variable definitions first and rules second
-  echo "$MAKEFILE" | build_variable_filter
-  echo
-  echo "$MAKEFILE" | build_rules_filter
-
-  # Include recursive file dependencies
+  # Include source header dependencies
   if [ -d "$TARGET_DEPEND_DIR" ]; then
     find "$TARGET_DEPEND_DIR" -name '*.a' -exec $AR -p {} \;
   fi
