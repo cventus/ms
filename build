@@ -2,7 +2,8 @@
 
 set -e
 
-AR=${AR:-ar}
+: ${AR:=ar} \
+  ${BUILD_CONFIG:=./build.conf}
 
 # Make "append FOO item1 item2 ..." and "contains FOO item" available for list
 # like variable FOO
@@ -45,7 +46,7 @@ decl_list LDFLAGS
 export CFLAGS LDFLAGS CPPFLAGS
 
 # Initialize with build configuration
-if [ -f "${BUILD_CONFIG:=./build.conf}" ]; then . "$BUILD_CONFIG"; fi
+if [ -f "$BUILD_CONFIG" ]; then . "$BUILD_CONFIG"; fi
 
 if [ -z "$MODULES" ]; then
   echo "Build modules not defined in environment or $BUILD_CONFIG" >&2
@@ -56,26 +57,23 @@ readonly MODULES
 case "${BUILD_SOURCE_DIR:=src}" in
 (/*) ;; (*) BUILD_SOURCE_DIR="$(dirname "$BUILD_CONFIG")/$BUILD_SOURCE_DIR";;
 esac
-readonly BUILD_SOURCE_DIR
 
 case "${BUILD_INCLUDE_DIR:=include}" in
 (/*) ;; (*) BUILD_INCLUDE_DIR="$(dirname "$BUILD_CONFIG")/$BUILD_INCLUDE_DIR";;
 esac
-readonly BUILD_INCLUDE_DIR
 
-readonly TARGET_NAME="${TARGET_NAME:-target}"
-readonly TARGET_TEMP_DIR="${TARGET_TEMP_DIR:-$TARGET_NAME/tmp}"
+# Variables that can be overridden in the build configuration
+: ${TARGET_NAME:=target} \
+: ${TARGET_TEMP_DIR:=$TARGET_NAME/tmp}
+
+readonly TARGET_NAME TARGET_TEMP_DIR BUILD_SOURCE_DIR BUILD_INCLUDE_DIR
 
 # General directories
 readonly TARGET_LIBRARY_DIR="$TARGET_NAME/lib"
 readonly TARGET_DEPEND_DIR="$TARGET_NAME/dep"
 readonly TARGET_BINARY_DIR="$TARGET_NAME/bin"
 readonly TARGET_OBJECT_DIR="$TARGET_NAME/obj"
-
-# Module specific test binaries
 readonly TARGET_TEST_BINARY_DIR="$TARGET_NAME/test"
-
-# Generated sources
 readonly TARGET_SOURCE_DIR="$TARGET_NAME/src"
 readonly TARGET_INCLUDE_DIR="$TARGET_NAME/include"
 
