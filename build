@@ -164,14 +164,14 @@ object_cmd() {
 # Output a makefile rule to compile an object for a module.
 # Usage: define_object <object> <source> [<cc flags> ...]
 define_object() {
-  MEMBER="${1%.o}"
-  MEMBER_SOURCE="$MODULE_DIR/$2"
+  define_object_obj_=$1
+  define_object_src_="$MODULE_DIR/$2"
   shift 2
 
-  append OBJECTS $MEMBER.o
+  append OBJECTS "$define_object_obj_"
 
-  target_cc "$MODULE_OBJECT_DIR/$MEMBER.o" "$MEMBER_SOURCE"
-    object_cmd "$MODULE_OBJECT_DIR/$MEMBER.o" "$MEMBER_SOURCE" "$@"
+  target_cc "$MODULE_OBJECT_DIR/$define_object_obj_" "$define_object_src_"
+  object_cmd "$MODULE_OBJECT_DIR/$define_object_obj_" "$define_object_src_" "$@"
   end_target
 }
 
@@ -202,7 +202,7 @@ build_module_tests() {
 }
 
 build_module_generated_headers() {
-  printf '\nMODULE_HEADERS.%s =' "$MODULE"
+  printf 'MODULE_HEADERS.%s =' "$MODULE"
   [ "$HEADERS" ] && printf " $TARGET_INCLUDE_DIR/%s" $HEADERS
   [ "$REQUIRE" ] && printf ' $(MODULE_HEADERS.%s)' $REQUIRE
   printf '\n'
@@ -217,13 +217,14 @@ build_module_targets() {
 
   # Default behavior when module configuration defines no sources nor objects.
   if [ -z "$SOURCES$OBJECTS" ] && globexists *.c; then append SOURCES *.c; fi
-  for S in $SOURCES; do define_object "$(basename "$S" .c)" "$S"; done
+  for S in $SOURCES; do define_object "$(basename $S .c).o" $S; done
 
-  TARGETS_=
+  build_module_targets_obj_=
   if [ "$OBJECTS" ]; then
-    TARGETS_=$(printf " ${MODULE_OBJECT_DIR}/%s" $OBJECTS)
+    build_module_targets_obj_=$(printf " $MODULE_OBJECT_DIR/%s" $OBJECTS)
   fi
-  target_generic "$LIBRARY" $TARGETS_
+
+  target_generic "$LIBRARY" $build_module_targets_obj_
     ar_cmd -s '$@' '$?'
     ar_cmd "$DEPEND" '$(?:.o=.o.d)'
     rm_cmd '$(?:.o=.o.d)'
@@ -280,8 +281,8 @@ makefile_prolog() {
   target_generic clean
     sh_cmd find "$TARGET_NAME" -type f -exec rm -- {} '\;'
   end_target
-  target_phony all clean
-  echo
+  target_phony all test clean
+  end_target
 }
 
 makefile_epilog() {
