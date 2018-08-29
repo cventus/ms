@@ -39,18 +39,20 @@ globexists() {
 }
 
 # Make list functions available in build configuration file
-decl_list MODULES
 decl_list CFLAGS
 decl_list CPPFLAGS
 decl_list LDFLAGS
+
+export CFLAGS LDFLAGS CPPFLAGS
+
+# List of modules in this build
+decl_list MODULES
 
 def_list RUN_ON_MODULE \
   build_module_link \
   build_module_tests \
   build_module_generated_headers \
   build_module_targets
-
-export CFLAGS LDFLAGS CPPFLAGS
 
 # Initialize with build configuration
 if [ -f "$BUILD_CONFIG" ]; then . "$BUILD_CONFIG"; fi
@@ -88,6 +90,7 @@ readonly TARGET_TEST_BINARY_DIR="$TARGET_NAME/test"
 readonly TARGET_SOURCE_DIR="$TARGET_NAME/src"
 readonly TARGET_INCLUDE_DIR="$TARGET_NAME/include"
 
+# Common cc flags
 readonly INCLUDE_FLAGS="-I$TARGET_INCLUDE_DIR -I$BUILD_INCLUDE_DIR"
 readonly DEPEND_FLAGS='-MMD -MP -MT $@ -MF'
 
