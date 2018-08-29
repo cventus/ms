@@ -308,13 +308,10 @@ build_makefile() {
     # Somewhat liberal variable parsing: expect no leading tab, equals sign
     # before the first colon; does not recognize variables with escaped
     # newlines before the equals sign.
-    if (/^[^\t][^:=]*=/ || enl == 1) {
+    if (/^[^\t][^:=]*=/ || enl) {
       print;
-      enl = /\\$/ ? 1 : 0;
-    } else {
-      rules[n++] = $0;
-      enl = /\\$/ ? -1 : 0;
-    }
+      enl = /\\$/;
+    } else rules[n++] = $0;
   }
   END {
     # Leave a blank line between variables and rules
