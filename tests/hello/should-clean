@@ -11,14 +11,11 @@ directory_must_be_empty() {
   [ -d "$1" -a -z "$files" ] || fail "$1 is not empty: $files"
 }
 
-directory_must_be_almost_empty() {
-  files=$(ls $1 | sed /test/d)
-  [ -d "$1" -a -z "$files" ] || fail "$1 is not empty: $files"
-}
-
 directory_must_exist target
 directory_must_be_empty target/bin
 directory_must_be_empty target/lib
-directory_must_be_empty target/dep
-directory_must_be_almost_empty target/tmp/main
-directory_must_be_empty target/tmp/main/test
+directory_must_be_empty target/depend
+directory_must_be_empty target/obj/main
+directory_must_be_empty target/test-bin/main
+directory_must_be_empty target/src/main
+directory_must_be_empty target/include/main

@@ -48,6 +48,12 @@ export CFLAGS LDFLAGS CPPFLAGS
 # List of modules in this build
 decl_list MODULES
 
+# General directories
+def_list TARGET_SHARED_DIRS lib depend bin
+def_list TARGET_MODULE_DIRS obj test-bin src include
+def_list TEMP_SHARED_DIRS
+def_list TEMP_MODULE_DIRS
+
 def_list RUN_ON_MODULE \
   build_module_link \
   build_module_tests \
@@ -71,27 +77,18 @@ build_path() {
 }
 
 # Variables that can be overridden in the build configuration
-: ${TARGET_NAME:=target} \
+: ${TARGET:=target} \
   ${BUILD_SOURCE_DIR:=src} \
   ${BUILD_INCLUDE_DIR:=include}
-: ${TARGET_TEMP_DIR:=$TARGET_NAME/tmp}
+: ${TARGET_TEMP_DIR:=$TARGET/tmp}
 
 BUILD_SOURCE_DIR=$(build_path "$BUILD_SOURCE_DIR")
 BUILD_INCLUDE_DIR=$(build_path "$BUILD_INCLUDE_DIR")
 
-readonly TARGET_NAME TARGET_TEMP_DIR BUILD_SOURCE_DIR BUILD_INCLUDE_DIR
-
-# General directories
-readonly TARGET_LIBRARY_DIR="$TARGET_NAME/lib"
-readonly TARGET_DEPEND_DIR="$TARGET_NAME/dep"
-readonly TARGET_BINARY_DIR="$TARGET_NAME/bin"
-readonly TARGET_OBJECT_DIR="$TARGET_NAME/obj"
-readonly TARGET_TEST_BINARY_DIR="$TARGET_NAME/test"
-readonly TARGET_SOURCE_DIR="$TARGET_NAME/src"
-readonly TARGET_INCLUDE_DIR="$TARGET_NAME/include"
+readonly TARGET TARGET_TEMP_DIR BUILD_SOURCE_DIR BUILD_INCLUDE_DIR
 
 # Common cc flags
-readonly INCLUDE_FLAGS="-I$TARGET_INCLUDE_DIR -I$BUILD_INCLUDE_DIR"
+readonly INCLUDE_FLAGS="-I$TARGET/include -I$BUILD_INCLUDE_DIR"
 readonly DEPEND_FLAGS='-MMD -MP -MT $@ -MF'
 
 # Module specific lists, defined when module configuration is sourced
@@ -116,7 +113,7 @@ target_generic() {
 
 target_phony() { target_generic .PHONY "$*"; }
 target_source() { target_generic "$GENERATED_SOURCE_DIR/$@"; }
-target_include() { target_generic "$TARGET_INCLUDE_DIR/$@"; }
+target_include() { target_generic "$TARGET/include/$@"; }
 target_cc() { target_generic "$@" "\$(MODULE_HEADERS.$MODULE)"; }
 target_ld() { target_generic "$@" "\$(MODULE_LINK.$MODULE)"; }
 target_bin() { target_cc "$@" "\$(MODULE_LINK.$MODULE)"; }
@@ -144,7 +141,7 @@ ccmk_cmd() { cc_cmd "$DEPEND_FLAGS" "$@"; }
 ld_cmd() {
   sh_cmd \
     '$(CC) $(CFLAGS) $(LDFLAGS)' \
-    "-L$TARGET_LIBRARY_DIR" "$*" \
+    "-L$TARGET/lib" "$*" \
     "\$(MODULE_LDFLAGS.$MODULE)"
 }
 
@@ -182,7 +179,7 @@ define_object() {
 build_module_link() {
   printf 'MODULE_LINK.%s =' "$MODULE"
   if [ "$REQUIRE" ]; then
-    printf " $TARGET_LIBRARY_DIR/lib%s.a" $REQUIRE
+    printf " $TARGET/lib/lib%s.a" $REQUIRE
     printf ' $(MODULE_LINK.%s)' $REQUIRE
   fi
   printf '\n'
@@ -207,7 +204,7 @@ build_module_tests() {
 
 build_module_generated_headers() {
   printf 'MODULE_HEADERS.%s =' "$MODULE"
-  [ "$HEADERS" ] && printf " $TARGET_INCLUDE_DIR/%s" $HEADERS
+  [ "$HEADERS" ] && printf " $TARGET/include/%s" $HEADERS
   [ "$REQUIRE" ] && printf ' $(MODULE_HEADERS.%s)' $REQUIRE
   printf '\n'
 }
@@ -235,15 +232,15 @@ build_module_targets() {
   end_target
 
   if [ "$BINARY" ]; then
-    target_generic "$MODULE" "$TARGET_BINARY_DIR/$BINARY"
+    target_generic "$MODULE" "$TARGET/bin/$BINARY"
 
     if [ "$BINARY" != "$MODULE" ]; then
-      target_generic "$BINARY" "$TARGET_BINARY_DIR/$BINARY"
+      target_generic "$BINARY" "$TARGET/bin/$BINARY"
       target_phony "$BINARY"
     fi
 
-    target_ld "$TARGET_BINARY_DIR/$BINARY" "$LIBRARY"
-      ld_cmd "$LIBRARY" -o "$TARGET_BINARY_DIR/$BINARY"
+    target_ld "$TARGET/bin/$BINARY" "$LIBRARY"
+      ld_cmd "$LIBRARY" -o "$TARGET/bin/$BINARY"
     end_target
   fi
 }
@@ -251,31 +248,23 @@ build_module_targets() {
 build_mkdir() { if [ ! -d "$1" ]; then mkdir "$1"; fi; }
 
 build_directories() {
-  build_mkdir "$TARGET_NAME"
+  build_mkdir "$TARGET"
   build_mkdir "$TARGET_TEMP_DIR"
-  build_mkdir "$TARGET_LIBRARY_DIR"
-  build_mkdir "$TARGET_DEPEND_DIR"
-  build_mkdir "$TARGET_BINARY_DIR"
-  build_mkdir "$TARGET_OBJECT_DIR"
 
-  build_mkdir "$TARGET_TEST_BINARY_DIR"
-  build_mkdir "$TARGET_SOURCE_DIR"
-  build_mkdir "$TARGET_INCLUDE_DIR"
+  for D in $TARGET_SHARED_DIRS $TARGET_MODULE_DIRS; do
+    build_mkdir "$TARGET/$D"
+  done
+  for D in $TEMP_SHARED_DIRS $TEMP_MODULE_DIRS; do
+    build_mkdir "$TARGET_TEMP_DIR/$D"
+  done
 
   for MODULE in $MODULES; do
-    # For object and dependency files
-    build_mkdir "$TARGET_TEMP_DIR/$MODULE"
-    build_mkdir "$TARGET_OBJECT_DIR/$MODULE"
-
-    # For test object and dependency files
-    build_mkdir "$TARGET_TEMP_DIR/$MODULE/test"
-
-    # Test binaries
-    build_mkdir "$TARGET_TEST_BINARY_DIR/$MODULE"
-
-    # Generated files
-    build_mkdir "$TARGET_SOURCE_DIR/$MODULE"
-    build_mkdir "$TARGET_INCLUDE_DIR/$MODULE"
+    for D in $TARGET_MODULE_DIRS; do
+      build_mkdir "$TARGET/$D/$MODULE"
+    done
+    for D in $TEMP_MODULE_DIRS; do
+      build_mkdir "$TARGET_TEMP_DIR/$D/$MODULE"
+    done
   done
 }
 
@@ -283,7 +272,7 @@ makefile_prolog() {
   target_generic all
   target_generic test
   target_generic clean
-    sh_cmd find "$TARGET_NAME" -type f -exec rm -- {} '\;'
+    sh_cmd find "$TARGET" -type f -exec rm -- {} '\;'
   end_target
   target_phony all test clean
   end_target
@@ -306,14 +295,12 @@ build_makefile() {
   for MODULE in $MODULES; do (
     readonly MODULE
     readonly MODULE_DIR="$BUILD_SOURCE_DIR/$MODULE"
-    readonly DEPEND="$TARGET_DEPEND_DIR/mk-lib$MODULE.a"
-    readonly LIBRARY="$TARGET_LIBRARY_DIR/lib$MODULE.a"
-    readonly GENERATED_SOURCE_DIR="$TARGET_SOURCE_DIR/$MODULE"
-    readonly GENERATED_INCLUDE_DIR="$TARGET_INCLUDE_DIR/$MODULE"
-    readonly MODULE_OBJECT_DIR="$TARGET_OBJECT_DIR/$MODULE"
-    readonly MODULE_TEMP_DIR="$TARGET_TEMP_DIR/$MODULE"
-    readonly TEST_TEMP_DIR="$TARGET_TEMP_DIR/$MODULE/test"
-    readonly TEST_BIN_DIR="$TARGET_TEST_BINARY_DIR/$MODULE"
+    readonly DEPEND="$TARGET/depend/mk-lib$MODULE.a"
+    readonly LIBRARY="$TARGET/lib/lib$MODULE.a"
+    readonly GENERATED_SOURCE_DIR="$TARGET/src/$MODULE"
+    readonly GENERATED_INCLUDE_DIR="$TARGET/include/$MODULE"
+    readonly MODULE_OBJECT_DIR="$TARGET/obj/$MODULE"
+    readonly TEST_BIN_DIR="$TARGET/test-bin/$MODULE"
 
     cd "$MODULE_DIR"
     if [ -f module ]; then . ../$MODULE/module; fi
@@ -339,8 +326,8 @@ build_makefile() {
   }'
 
   # Include source header dependencies
-  if [ -d "$TARGET_DEPEND_DIR" ]; then
-    find "$TARGET_DEPEND_DIR" \
+  if [ -d "$TARGET/depend" ]; then
+    find "$TARGET/depend" \
       -name '*.a' -exec $AR -p {} \; -o \
       -name '*.d' -exec cat {} \;
   fi

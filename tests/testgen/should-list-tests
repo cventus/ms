@@ -1,5 +1,5 @@
 fixture testgen
 
-strings_must_equal "$(build_or_fail -s list-tests)" \
-"target/test/calc/passes
-target/test/calc/fails"
+strings_must_equal "$(build_or_fail -s list-tests)" "\
+target/test-bin/calc/passes
+target/test-bin/calc/fails"
