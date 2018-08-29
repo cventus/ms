@@ -91,13 +91,10 @@ readonly TARGET TARGET_TEMP_DIR BUILD_SOURCE_DIR BUILD_INCLUDE_DIR
 readonly INCLUDE_FLAGS="-I$TARGET/include -I$BUILD_INCLUDE_DIR"
 readonly DEPEND_FLAGS='-MMD -MP -MT $@ -MF'
 
-# Module specific lists, defined when module configuration is sourced
-def_list SOURCES
-def_list OBJECTS
-def_list HEADERS
-def_list REQUIRE
-def_list LINKER
-def_list TESTS
+# Module specific variables, defined when module configuration is sourced
+for L in SOURCES OBJECTS HEADERS REQUIRE LINKER TESTS; do
+  def_list $L
+done
 
 BINARY=
 
