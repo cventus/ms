@@ -339,9 +339,7 @@ build_makefile() {
   }'
 }
 
-main() {
-  build_directories
-  build_makefile | ${MAKE:-make -rf-} "$@"
-}
-
-main "$@"
+case "$*" in
+[Mm]akefile) build_makefile;;
+*) build_makefile | ${MAKE:-make} -rf- "$@";;
+esac

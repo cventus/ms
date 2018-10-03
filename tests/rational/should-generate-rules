@@ -1,8 +1,2 @@
 fixture rational
-
-if build -s all test; then
-  echo "[Makefile]"
-else
-  echo "[Broken Makefile]"
-fi
-MAKE=cat build
+generate_rules

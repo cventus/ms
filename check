@@ -52,6 +52,18 @@ directory_must_exist() { # file
   [ -d "$1" ] || fail "Not found: $1"
 }
 
+generate_rules() {
+  unset err
+  if build -s; then
+    echo "# Makefile"
+  else
+    echo "# Broken Makefile"
+    err=1
+  fi
+  build Makefile
+  exit $err
+}
+
 TESTS="$(cd tests; find ${@:-.} -type f -print | sort | uniq | sed 's/^.\///')"
 echo 1..$(echo "$TESTS" | wc -l)
 

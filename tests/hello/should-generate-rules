@@ -1,10 +1,2 @@
-# Use ``cat'' as a phony ``make'' to see output and only run ``build'' itself
-
 fixture hello
-
-if build -s; then
-  echo "[Makefile]"
-else
-  echo "[Broken Makefile]"
-fi
-MAKE=cat build
+generate_rules
