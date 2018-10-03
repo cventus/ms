@@ -10,7 +10,7 @@ specialize_object() {
 
 specialize_header() {
   target_source "${3}rat.h" "$MODULE_DIR/rat.h"
-  cc_cmd -E -C $(cpp_macros "$@") '"$?" >"$@"'
+  cc_cmd -E -C $(cpp_macros "$@") \"$MODULE_DIR/rat.h\" '>"$@"'
   end_target
 }
 

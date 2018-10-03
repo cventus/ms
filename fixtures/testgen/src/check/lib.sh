@@ -26,7 +26,9 @@ addcheck()
     "$CHECK_BINARY" \
     "$CHECK_SOURCE" \
     "$LIBRARY" \
-    "$TARGET/lib/libcheck.a"
+    "$TARGET/lib/libcheck.a" \
+    "$TARGET/test-bin/$MODULE\$D" \
+    "$CHECK_TEMP_DIR\$D"
 
   object_cmd "$CHECK_OBJECT" "$CHECK_SOURCE" "$@"
 

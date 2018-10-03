@@ -6,6 +6,8 @@ set -e
   ${BUILD_CONFIG:=./build.conf}
 readonly BUILD_CONFIG BUILD_ROOT=$(dirname "$BUILD_CONFIG")
 
+readonly DIRECTORY_TARGET_FILE=.dir
+
 # Make "append FOO item1 item2 ..." and "contains FOO item" available for list
 # like variable FOO
 decl_list() {
@@ -56,6 +58,7 @@ def_list TEMP_MODULE_DIRS
 
 def_list MAKEFILE_COMMANDS \
   build_module_rules \
+  build_directory_rules \
   build_list_tests_target \
   build_depend_rules
 
@@ -114,11 +117,13 @@ target_generic() {
 }
 
 target_phony() { target_generic .PHONY "$*"; }
-target_source() { target_generic "$GENERATED_SOURCE_DIR/$@"; }
-target_include() { target_generic "$TARGET/include/$@"; }
-target_cc() { target_generic "$@" "\$(MODULE_HEADERS.$MODULE)"; }
-target_ld() { target_generic "$@" "\$(MODULE_LINK.$MODULE)"; }
-target_bin() { target_cc "$@" "\$(MODULE_LINK.$MODULE)"; }
+target_source() { target_generic "$GENERATED_SOURCE_DIR/$@" "$TARGET/src/$MODULE\$D"; }
+target_include() { target_generic "$TARGET/include/$@" "$TARGET/include\$D"; }
+target_cc() {
+  target_generic "$@" "\$(MODULE_HEADERS.$MODULE)" "$MODULE_OBJECT_DIR\$D";
+}
+target_ld() { target_generic "$@" "\$(MODULE_LINK.$MODULE)" "$TARGET/bin\$D"; }
+target_bin() { target_cc "$@" "\$(MODULE_LINK.$MODULE)" "$TARGET/bin\$D"; }
 end_target() { printf '\n'; }
 
 # Functions for adding rule commands
@@ -222,15 +227,14 @@ build_module_targets() {
   if [ -z "$SOURCES$OBJECTS" ] && globexists *.c; then append SOURCES *.c; fi
   for S in $SOURCES; do define_object "$(basename $S .c).o" $S; done
 
-  build_module_targets_obj_=
+  unset build_module_targets_obj_
   if [ "$OBJECTS" ]; then
     build_module_targets_obj_=$(printf " $MODULE_OBJECT_DIR/%s" $OBJECTS)
   fi
 
-  target_generic "$LIBRARY" $build_module_targets_obj_
-    ar_cmd -s '$@' '$?'
+  target_generic "$LIBRARY" $build_module_targets_obj_ "$TARGET/lib\$D" "$TARGET/depend\$D"
+    ar_cmd -s "$LIBRARY" '$?'
     ar_cmd "$DEPEND" '$(?:.o=.o.d)'
-    rm_cmd '$(?:.o=.o.d)'
   end_target
 
   if [ "$BINARY" ]; then
@@ -307,6 +311,44 @@ build_module_rules() {
     if [ -f module ]; then . ../$MODULE/module; fi
     for C in $MODULE_COMMANDS; do $C; done
   ); done
+}
+
+build_directory_rules() {
+  printf 'D=/%s\n' "$DIRECTORY_TARGET_FILE"
+  printf '%s$D \\\n' "$TARGET" "$TARGET_TEMP_DIR" $(
+    for D in $TARGET_SHARED_DIRS $TARGET_MODULE_DIRS; do
+      echo "$TARGET/$D"
+    done
+    for D in $TEMP_SHARED_DIRS $TEMP_MODULE_DIRS; do
+      echo "$TARGET_TEMP_DIR/$D"
+    done
+    for MODULE in $MODULES; do
+      for D in $TARGET_MODULE_DIRS; do
+        echo "$TARGET/$D/$MODULE"
+      done
+      for D in $TEMP_MODULE_DIRS; do
+        echo "$TARGET_TEMP_DIR/$D/$MODULE"
+      done
+    done
+  )
+  printf ':; test -d $(@D) || mkdir $(@D); touch $@;\n\n'
+
+  for D in $TARGET_SHARED_DIRS $TARGET_MODULE_DIRS; do
+    target_generic "$TARGET/$D"\$D "$TARGET"\$D
+  done
+  for D in $TEMP_SHARED_DIRS $TEMP_MODULE_DIRS; do
+    target_generic "$TARGET_TEMP_DIR/$D"\$D "$TARGET_TEMP_DIR"\$D
+  done
+  for MODULE in $MODULES; do
+    for D in $TARGET_MODULE_DIRS; do
+      target_generic "$TARGET/$D/$MODULE"\$D "$TARGET/$D"\$D
+    done
+    for D in $TEMP_MODULE_DIRS; do
+      target_generic "$TARGET_TEMP_DIR/$D/$MODULE"\$D "$TARGET_TEMP_DIR/$D"\$D
+    done
+  done
+
+  echo
 }
 
 build_depend_rules() {

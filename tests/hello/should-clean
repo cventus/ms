@@ -16,6 +16,3 @@ directory_must_be_empty target/bin
 directory_must_be_empty target/lib
 directory_must_be_empty target/depend
 directory_must_be_empty target/obj/main
-directory_must_be_empty target/test-bin/main
-directory_must_be_empty target/src/main
-directory_must_be_empty target/include/main
