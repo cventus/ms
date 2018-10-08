@@ -269,6 +269,7 @@ build_list_tests_target() {
         'echo $$T;' \
       'done'
   end_target
+  target_phony list-tests
 }
 
 build_module_rules() {
