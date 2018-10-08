@@ -251,29 +251,6 @@ build_module_targets() {
   fi
 }
 
-build_mkdir() { if [ ! -d "$1" ]; then mkdir "$1"; fi; }
-
-build_directories() {
-  build_mkdir "$TARGET"
-  build_mkdir "$TARGET_TEMP_DIR"
-
-  for D in $TARGET_SHARED_DIRS $TARGET_MODULE_DIRS; do
-    build_mkdir "$TARGET/$D"
-  done
-  for D in $TEMP_SHARED_DIRS $TEMP_MODULE_DIRS; do
-    build_mkdir "$TARGET_TEMP_DIR/$D"
-  done
-
-  for MODULE in $MODULES; do
-    for D in $TARGET_MODULE_DIRS; do
-      build_mkdir "$TARGET/$D/$MODULE"
-    done
-    for D in $TEMP_MODULE_DIRS; do
-      build_mkdir "$TARGET_TEMP_DIR/$D/$MODULE"
-    done
-  done
-}
-
 # Added first as-is to output makefile
 build_makefile_header() {
   target_generic all
