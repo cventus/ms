@@ -32,12 +32,12 @@ done
 exec 3<&-
 
 target_include rational.h \
-  $(printf " $GENERATED_SOURCE_DIR/%srat.h" "" l ll)
+  $(printf " \$(TARGET)/src/$MODULE/%srat.h" "" l ll)
 
 # Recipe for composing header from parts
 sh_cmd \
   "sed -n '/begin public rat.h/,/end public rat.h/p'" \
-  "$(printf " $GENERATED_SOURCE_DIR/%srat.h" "" l ll)" \| \
+  "$(printf " \$(TARGET)/src/$MODULE/%srat.h" "" l ll)" \| \
   "sed '/\\(begin\\|end\\) public rat.h/d'" \| \
   cat $MODULE_DIR/prolog.h - $MODULE_DIR/epilog.h '>$@'
 end_target

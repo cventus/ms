@@ -50,12 +50,6 @@ export CFLAGS LDFLAGS CPPFLAGS
 # List of modules in this build
 decl_list MODULES
 
-# General directories
-def_list TARGET_SHARED_DIRS lib depend bin
-def_list TARGET_MODULE_DIRS obj test-bin src include
-def_list TEMP_SHARED_DIRS
-def_list TEMP_MODULE_DIRS
-
 def_list MAKEFILE_COMMANDS \
   build_module_rules \
   build_directory_rules \
@@ -88,15 +82,11 @@ build_path() {
 : ${TARGET:=target} \
   ${BUILD_SOURCE_DIR:=src} \
   ${BUILD_INCLUDE_DIR:=include}
-: ${TARGET_TEMP_DIR:=$TARGET/tmp}
 
-BUILD_SOURCE_DIR=$(build_path "$BUILD_SOURCE_DIR")
-BUILD_INCLUDE_DIR=$(build_path "$BUILD_INCLUDE_DIR")
-
-readonly TARGET TARGET_TEMP_DIR BUILD_SOURCE_DIR BUILD_INCLUDE_DIR
+readonly TARGET BUILD_SOURCE_DIR BUILD_INCLUDE_DIR
 
 # Common cc flags
-readonly INCLUDE_FLAGS="-I$TARGET/include -I$BUILD_INCLUDE_DIR"
+readonly INCLUDE_FLAGS="-I\$(TARGET)/include -I\$(BUILD_HOME)/$BUILD_INCLUDE_DIR"
 readonly DEPEND_FLAGS='-MMD -MP -MT $@ -MF'
 
 # Module specific variables, defined when module configuration is sourced
@@ -117,13 +107,11 @@ target_generic() {
 }
 
 target_phony() { target_generic .PHONY "$*"; }
-target_source() { target_generic "$GENERATED_SOURCE_DIR/$@" "$TARGET/src/$MODULE\$D"; }
-target_include() { target_generic "$TARGET/include/$@" "$TARGET/include\$D"; }
-target_cc() {
-  target_generic "$@" "\$(MODULE_HEADERS.$MODULE)" "$MODULE_OBJECT_DIR\$D";
-}
-target_ld() { target_generic "$@" "\$(MODULE_LINK.$MODULE)" "$TARGET/bin\$D"; }
-target_bin() { target_cc "$@" "\$(MODULE_LINK.$MODULE)" "$TARGET/bin\$D"; }
+target_source() { target_generic "\$(TARGET)/src/$MODULE/$@"; }
+target_include() { target_generic "\$(TARGET)/include/$@"; }
+target_cc() { target_generic "$@" "\$(MODULE_HEADERS.$MODULE)"; }
+target_ld() { target_generic "$@" "\$(MODULE_LINK.$MODULE)"; }
+target_bin() { target_cc "$@" "\$(MODULE_LINK.$MODULE)"; }
 end_target() { printf '\n'; }
 
 # Functions for adding rule commands
@@ -148,7 +136,7 @@ ccmk_cmd() { cc_cmd "$DEPEND_FLAGS" "$@"; }
 ld_cmd() {
   sh_cmd \
     '$(CC) $(CFLAGS) $(LDFLAGS)' \
-    "-L$TARGET/lib" "$*" \
+    '-L$(TARGET)/lib' "$*" \
     "\$(MODULE_LDFLAGS.$MODULE)"
 }
 
@@ -186,7 +174,7 @@ define_object() {
 build_module_link() {
   printf 'MODULE_LINK.%s =' "$MODULE"
   if [ "$REQUIRE" ]; then
-    printf " $TARGET/lib/lib%s.a" $REQUIRE
+    printf ' $(TARGET)/lib/lib%s.a' $REQUIRE
     printf ' $(MODULE_LINK.%s)' $REQUIRE
   fi
   printf '\n'
@@ -211,7 +199,7 @@ build_module_tests() {
 
 build_module_generated_headers() {
   printf 'MODULE_HEADERS.%s =' "$MODULE"
-  [ "$HEADERS" ] && printf " $TARGET/include/%s" $HEADERS
+  [ "$HEADERS" ] && printf ' $(TARGET)/include/%s' $HEADERS
   [ "$REQUIRE" ] && printf ' $(MODULE_HEADERS.%s)' $REQUIRE
   printf '\n'
 }
@@ -232,21 +220,21 @@ build_module_targets() {
     build_module_targets_obj_=$(printf " $MODULE_OBJECT_DIR/%s" $OBJECTS)
   fi
 
-  target_generic "$LIBRARY" $build_module_targets_obj_ "$TARGET/lib\$D" "$TARGET/depend\$D"
+  target_generic "$LIBRARY" $build_module_targets_obj_ '$(TARGET)/depend$D'
     ar_cmd -s "$LIBRARY" '$?'
     ar_cmd "$DEPEND" '$(?:.o=.o.d)'
   end_target
 
   if [ "$BINARY" ]; then
-    target_generic "$MODULE" "$TARGET/bin/$BINARY"
+    target_generic "$MODULE" "\$(TARGET)/bin/$BINARY"
 
     if [ "$BINARY" != "$MODULE" ]; then
-      target_generic "$BINARY" "$TARGET/bin/$BINARY"
+      target_generic "$BINARY" "\$(TARGET)/bin/$BINARY"
       target_phony "$BINARY"
     fi
 
-    target_ld "$TARGET/bin/$BINARY" "$LIBRARY"
-      ld_cmd "$LIBRARY" -o "$TARGET/bin/$BINARY"
+    target_ld "\$(TARGET)/bin/$BINARY" "$LIBRARY"
+      ld_cmd "$LIBRARY" -o "\$(TARGET)/bin/$BINARY"
     end_target
   fi
 }
@@ -277,56 +265,21 @@ build_module_rules() {
   # independent sub-shell)
   for MODULE in $MODULES; do (
     readonly MODULE
-    readonly MODULE_DIR="$BUILD_SOURCE_DIR/$MODULE"
-    readonly DEPEND="$TARGET/depend/mk-lib$MODULE.a"
-    readonly LIBRARY="$TARGET/lib/lib$MODULE.a"
-    readonly GENERATED_SOURCE_DIR="$TARGET/src/$MODULE"
-    readonly GENERATED_INCLUDE_DIR="$TARGET/include/$MODULE"
-    readonly MODULE_OBJECT_DIR="$TARGET/obj/$MODULE"
-    readonly TEST_BIN_DIR="$TARGET/test-bin/$MODULE"
+    readonly MODULE_DIR="\$(BUILD_HOME)/$BUILD_SOURCE_DIR/$MODULE"
+    readonly DEPEND="\$(TARGET)/depend/make$MODULE.a"
+    readonly LIBRARY="\$(TARGET)/lib/lib$MODULE.a"
+    readonly MODULE_OBJECT_DIR="\$(TARGET)/obj/$MODULE"
 
-    cd "$MODULE_DIR"
+    cd $(build_path "$BUILD_SOURCE_DIR/$MODULE")
     if [ -f module ]; then . ../$MODULE/module; fi
     for C in $MODULE_COMMANDS; do $C; done
   ); done
 }
 
 build_directory_rules() {
-  printf 'D=/%s\n' "$DIRECTORY_TARGET_FILE"
-  printf '%s$D \\\n' "$TARGET" "$TARGET_TEMP_DIR" $(
-    for D in $TARGET_SHARED_DIRS $TARGET_MODULE_DIRS; do
-      echo "$TARGET/$D"
-    done
-    for D in $TEMP_SHARED_DIRS $TEMP_MODULE_DIRS; do
-      echo "$TARGET_TEMP_DIR/$D"
-    done
-    for MODULE in $MODULES; do
-      for D in $TARGET_MODULE_DIRS; do
-        echo "$TARGET/$D/$MODULE"
-      done
-      for D in $TEMP_MODULE_DIRS; do
-        echo "$TARGET_TEMP_DIR/$D/$MODULE"
-      done
-    done
-  )
-  printf ':; test -d $(@D) || mkdir $(@D); touch $@;\n\n'
-
-  for D in $TARGET_SHARED_DIRS $TARGET_MODULE_DIRS; do
-    target_generic "$TARGET/$D"\$D "$TARGET"\$D
-  done
-  for D in $TEMP_SHARED_DIRS $TEMP_MODULE_DIRS; do
-    target_generic "$TARGET_TEMP_DIR/$D"\$D "$TARGET_TEMP_DIR"\$D
-  done
-  for MODULE in $MODULES; do
-    for D in $TARGET_MODULE_DIRS; do
-      target_generic "$TARGET/$D/$MODULE"\$D "$TARGET/$D"\$D
-    done
-    for D in $TEMP_MODULE_DIRS; do
-      target_generic "$TARGET_TEMP_DIR/$D/$MODULE"\$D "$TARGET_TEMP_DIR/$D"\$D
-    done
-  done
-
-  echo
+  echo "BUILD_HOME = $BUILD_HOME"
+  echo "TARGET = $TARGET"
+  echo "D = /$DIRECTORY_TARGET_FILE"
 }
 
 build_depend_rules() {
@@ -342,20 +295,43 @@ build_makefile() {
   build_makefile_header
 
   for C in $MAKEFILE_COMMANDS; do $C; done | awk '
-  # Place variable definitions first and rules second
-  {
-    # Somewhat liberal variable parsing: expect no leading tab, equals sign
-    # before the first colon; does not recognize variables with escaped
-    # newlines before the equals sign.
-    if (/^[^\t][^:=]*=/ || enl) {
-      print;
-      enl = /\\$/;
-    } else rules[n++] = $0;
+  { buffer[n++] = $0; m++; line = sprintf("%s%*s", line, length($0) - 1, $0); }
+
+  /[^\\]$/ && line !~ /^\t/ {
+    sub(/#.*$/, "", line)
+    gsub(/\$[{(][^:]*:[^=]*=[^})]*[)}]/, "", line)
+    if (line ~ /^[^:=]*=/) {
+      n -= m
+      for (i = 0; i < m; i++) print buffer[n + i]
+    } else if (line ~ /[^:]{1,}:/) {
+      m = split(line, targets, /[ \t:]{1,}/)
+      for (i = 1; i <= m; i++) {
+        target = targets[i]
+        while (target ~ /\$[({]TARGET[^})]*[)]\/./) {
+          parent_dir = target
+          sub(/\/[^\/]*$/, "", parent_dir)
+          target_dirs[target] = parent_dir "$D"
+	  target = parent_dir "$D"
+        }
+      }
+    }
   }
+
+  { m = 0; line = ""; }
+
   END {
-    # Leave a blank line between variables and rules
-    print "";
-    for (i = 0; i < n; i++) print rules[i];
+    print ""
+    for (i = 0; i < n; i++) print buffer[i];
+    if (length(parent_dir) > 0) {
+      for (t in target_dirs) {
+        if (t ~ /\$D$/) printf("\n%s \\", t) | "sort | uniq"
+        printf("\n%s \\", target_dirs[t]) | "sort | uniq"
+      }
+      close("sort | uniq")
+      print ":; test -d $(@D) || mkdir $(@D); touch $@;\n"
+      for (t in target_dirs) printf("%s: %s\n", t, target_dirs[t]) | "sort"
+      close("sort")
+    }
   }'
 }
 

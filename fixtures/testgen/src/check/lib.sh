@@ -8,56 +8,52 @@ addcheck()
 {
   CHECK_SOURCE="$MODULE_DIR/$1"
   CHECK_NAME=$(basename "$CHECK_SOURCE" .c)
+
   case "$2" in
   (-*) ;;
   (?*.c) CHECK_SOURCE="$MODULE_DIR/$2"; shift;;
   esac
   shift
-  CHECK_TEMP_DIR="$TARGET_TEMP_DIR/check/$MODULE"
-  CHECK_OBJECT="$CHECK_TEMP_DIR/$CHECK_NAME.o"
-  CHECK_GENSRC="$CHECK_TEMP_DIR/${CHECK_NAME}_check.c"
-  CHECK_GENOBJ="$CHECK_TEMP_DIR/${CHECK_NAME}_check.o"
-  CHECK_BINARY="$TEST_BIN_DIR/$CHECK_NAME"
-  CHECK_DEPEND="$TARGET/depend/mk-test-$MODULE-$CHECK_NAME.a"
+
+  CHECK_OBJECT="\$(TARGET)/test/$MODULE/obj/$CHECK_NAME.o"
+  CHECK_GENSRC="\$(TARGET)/test/$MODULE/src/$CHECK_NAME.check.c"
+  CHECK_GENOBJ="\$(TARGET)/test/$MODULE/obj/$CHECK_NAME.check.o"
+  CHECK_BINARY="\$(TARGET)/test/$MODULE/bin/$CHECK_NAME"
+  CHECK_DEPDIR="\$(TARGET)/depend/test/$MODULE"
+  CHECK_DEPEND="$CHECK_DEPDIR/make$CHECK_NAME.a"
+  CHECK_SCRIPT="\$(BUILD_HOME)/$BUILD_SOURCE_DIR/check/checkgen.awk"
 
   append TESTS "$CHECK_BINARY"
 
-  target_bin \
-    "$CHECK_BINARY" \
-    "$CHECK_SOURCE" \
-    "$LIBRARY" \
-    "$TARGET/lib/libcheck.a" \
-    "$TARGET/test-bin/$MODULE\$D" \
-    "$CHECK_TEMP_DIR\$D"
+  # Rule to compile test functions
+  target_cc $CHECK_OBJECT $CHECK_SOURCE
+    object_cmd $CHECK_OBJECT "$CHECK_SOURCE" "$@"
+  end_target
 
-  object_cmd "$CHECK_OBJECT" "$CHECK_SOURCE" "$@"
+  # Rule for generated source and function stubs
+  target_generic $CHECK_GENSRC $CHECK_OBJECT $CHECK_SCRIPT
+    sh_cmd '$(NM)' -PA $CHECK_OBJECT \| awk -f $CHECK_SCRIPT '>$@'
+  end_target
 
-  # Add source dependencies to archive
-  ar_cmd "$CHECK_DEPEND" "$CHECK_OBJECT.d"
+  # Rule to build generated source
+  target_cc $CHECK_GENOBJ $CHECK_GENSRC
+    object_cmd $CHECK_GENOBJ $CHECK_GENSRC
+  end_target
 
-  # Generate stubs and test list based on which symbols were defined
-  sh_cmd \
-    '$(NM)' -PA $CHECK_OBJECT \| \
-    awk -f $BUILD_SOURCE_DIR/check/checkgen.awk \
-    \>$CHECK_GENSRC
+  # Rule to link the test executable
+  target_ld "$CHECK_BINARY" \
+    "$CHECK_OBJECT" "$CHECK_GENOBJ " "$LIBRARY" "\$(TARGET)/lib/libcheck.a" \
+    "$CHECK_DEPDIR\$D"
 
-  # Compile generated source
-  cc_cmd -c "$CHECK_GENSRC" -o "$CHECK_GENOBJ"
+    # Add source dependencies to archive
+    ar_cmd "$CHECK_DEPEND" "$CHECK_OBJECT.d" "$CHECK_GENOBJ.d"
 
-  # Link test executable
-  ld_cmd \
-    -o "\"$CHECK_BINARY"\" \
-    "\"$CHECK_OBJECT"\" \
-    "\"$CHECK_GENOBJ"\" \
-    -lcheck \
-    -l$MODULE
-
-  # Remove temporary files
-  rm_cmd \
-    "$CHECK_OBJECT" \
-    "$CHECK_OBJECT.d" \
-    "$CHECK_GENSRC" \
-    "$CHECK_GENOBJ"
-
+    # Link test executable
+    ld_cmd \
+      -o "\"$CHECK_BINARY"\" \
+      "\"$CHECK_OBJECT"\" \
+      "\"$CHECK_GENOBJ"\" \
+      -lcheck \
+      -l$MODULE
   end_target
 }
