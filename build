@@ -4,7 +4,7 @@ set -e
 
 : ${AR:=ar} \
   ${BUILD_CONFIG:=./build.conf}
-readonly BUILD_CONFIG BUILD_ROOT=$(dirname "$BUILD_CONFIG")
+readonly BUILD_CONFIG BUILD_HOME=$(dirname "$BUILD_CONFIG")
 
 readonly DIRECTORY_TARGET_FILE=.dir
 
@@ -80,7 +80,7 @@ readonly MODULES
 # make path relative to build configuration file unless absolute
 build_path() {
   if expr "$1" : "/" >/dev/null; then echo "$1"
-  else echo "$BUILD_ROOT/$1"
+  else echo "$BUILD_HOME/$1"
   fi
 }
 
