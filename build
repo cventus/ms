@@ -16,7 +16,6 @@ export CFLAGS CPPFLAGS LDFLAGS LDLIBS
 
 MAKEFILE_COMMANDS="\
 build_module_rules
-build_directory_variables
 build_list_tests_target
 build_depend_rules
 "
@@ -211,10 +210,15 @@ build_makefile_header() {
   target_phony all test clean
   end_target
 
+  echo "SOURCE = $SOURCE"
+  echo "TARGET = $TARGET"
+  echo "D = /$DIRECTORY_TARGET_FILE"
+  echo
   echo "CFLAGS = $CFLAGS"
   echo "CPPFLAGS = $CPPFLAGS"
   echo "LDFLAGS = $LDFLAGS"
   echo "LDLIBS = $LDLIBS"
+  echo
 }
 
 build_list_tests_target() {
@@ -242,12 +246,6 @@ build_module_rules() {
     if [ -f module ]; then . ../$MODULE/module; fi
     for C in $MODULE_COMMANDS; do $C; done
   ); done
-}
-
-build_directory_variables() {
-  echo "SOURCE = $SOURCE"
-  echo "TARGET = $TARGET"
-  echo "D = /$DIRECTORY_TARGET_FILE"
 }
 
 build_depend_rules() {
