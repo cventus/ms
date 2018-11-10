@@ -146,12 +146,12 @@ build_module_variables() {
 }
 
 build_module_tests() {
-  printf 'MODULE_TESTS.%s =' "$MODULE"
+  printf 'TESTS.%s =' "$MODULE"
   [ "$TESTS" ] && printf ' %s' $TESTS
   printf '\n'
 
   target_phony "$MODULE-test"
-  target_generic "$MODULE-test" "\$(MODULE_TESTS.$MODULE)"
+  target_generic "$MODULE-test" "\$(TESTS.$MODULE)"
   target_generic test "$MODULE"-test
 }
 
@@ -225,7 +225,7 @@ build_list_tests_target() {
   target_generic list-tests
     sh_cmd printf '"%s\\n"' $(
       for MODULE_DIR in $MODULES; do
-        printf ' $(MODULE_TESTS.%s)' "$(basename $MODULE_DIR)"
+        printf ' $(TESTS.%s)' "$(basename $MODULE_DIR)"
       done
     )
   end_target
