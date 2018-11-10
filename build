@@ -59,7 +59,7 @@ target_phony() { target_generic .PHONY "$*"; }
 target_source() { target_generic "\$(TARGET)/src/$MODULE/$@"; }
 target_include() { target_generic "\$(TARGET)/include/$@"; }
 target_cc() { target_generic "$@" "\$(HEADERS.$MODULE)"; }
-target_ld() { target_generic "$@" "\$(MODULE_LINK.$MODULE)"; }
+target_ld() { target_generic "$@" "\$(LIBRARIES.$MODULE)"; }
 end_target() { printf '\n'; }
 
 # Functions for adding rule commands
@@ -120,10 +120,10 @@ define_object() {
 }
 
 build_module_link() {
-  printf 'MODULE_LINK.%s =' "$MODULE"
+  printf 'LIBRARIES.%s =' "$MODULE"
   if [ "$REQUIRE" ]; then
     printf ' $(TARGET)/lib/lib%s.a' $REQUIRE
-    printf ' $(MODULE_LINK.%s)' $REQUIRE
+    printf ' $(LIBRARIES.%s)' $REQUIRE
   fi
   printf '\n'
 
