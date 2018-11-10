@@ -58,7 +58,7 @@ target_generic() {
 target_phony() { target_generic .PHONY "$*"; }
 target_source() { target_generic "\$(TARGET)/src/$MODULE/$@"; }
 target_include() { target_generic "\$(TARGET)/include/$@"; }
-target_cc() { target_generic "$@" "\$(MODULE_HEADERS.$MODULE)"; }
+target_cc() { target_generic "$@" "\$(HEADERS.$MODULE)"; }
 target_ld() { target_generic "$@" "\$(MODULE_LINK.$MODULE)"; }
 end_target() { printf '\n'; }
 
@@ -146,9 +146,9 @@ build_module_tests() {
 }
 
 build_module_generated_headers() {
-  printf 'MODULE_HEADERS.%s =' "$MODULE"
+  printf 'HEADERS.%s =' "$MODULE"
   [ "$HEADERS" ] && printf ' $(TARGET)/include/%s' $HEADERS
-  [ "$REQUIRE" ] && printf ' $(MODULE_HEADERS.%s)' $REQUIRE
+  [ "$REQUIRE" ] && printf ' $(HEADERS.%s)' $REQUIRE
   printf '\n'
 }
 
