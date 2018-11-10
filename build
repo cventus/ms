@@ -12,7 +12,7 @@ readonly DIRECTORY_TARGET_FILE
 contains() { expr " $1 " : ".* $2 " >/dev/null; }
 globexists() { test -f "$1"; }
 
-export CFLAGS LDFLAGS CPPFLAGS
+export CFLAGS CPPFLAGS LDFLAGS LDLIBS
 
 MAKEFILE_COMMANDS="\
 build_module_rules
@@ -22,7 +22,7 @@ build_depend_rules
 "
 
 MODULE_COMMANDS="\
-build_module_link
+build_module_variables
 build_module_tests
 build_module_generated_headers
 build_module_targets
@@ -43,7 +43,7 @@ readonly INCLUDE_FLAGS="\
 ${SOURCE_INCLUDE:+$(printf ' -I$(SOURCE)/%s' $SOURCE_INCLUDE)}"
 
 # Module specific variables, defined when module configuration is sourced
-unset SOURCES OBJECTS HEADERS REQUIRE LINKER TESTS BINARY
+unset SOURCES OBJECTS HEADERS REQUIRE TESTS BINARY
 
 require() { REQUIRE="$REQUIRE $*"; }
 binary() { BINARY="${1:-$MODULE}"; }
@@ -69,7 +69,10 @@ ar_cmd() { sh_cmd '$(AR)' -rc "$*"; }
 # Output command to compile a single source file (add neccessary compilation
 # and preprocessor flags).
 # Usage: cc_cmd <cc args>...
-cc_cmd() { sh_cmd '$(CC) $(CFLAGS) $(CPPFLAGS)' "$INCLUDE_FLAGS" "$*"; }
+cc_cmd() {
+  sh_cmd "\$(CC) \$(CFLAGS) \$(CFLAGS.$MODULE)" \
+    "\$(CPPFLAGS) \$(CPPFLAGS.$MODULE) $INCLUDE_FLAGS $*"
+}
 
 # Output command to compile a single source file (add neccessary compilation
 # and preprocessor flags) and generate makefile rules at the specified path at
@@ -81,10 +84,9 @@ ccmk_cmd() { cc_cmd "$DEPEND_FLAGS" "$@"; }
 # linkage flags).
 # Usage: ld_cmd <cc args>...
 ld_cmd() {
-  sh_cmd \
-    '$(CC) $(CFLAGS) $(LDFLAGS)' \
-    '-L$(TARGET)/lib' "$*" \
-    "\$(MODULE_LDFLAGS.$MODULE)"
+  sh_cmd "\$(CC) \$(CFLAGS) \$(CFLAGS.$MODULE)" \
+    "-L\$(TARGET)/lib \$(LDFLAGS) \$(LDFLAGS.$MODULE)" \
+    "$* \$(LDLIBS.$MODULE) \$(LDLIBS)"
 }
 
 # Output command to compile and link a single source file (add neccessary
@@ -119,7 +121,12 @@ define_object() {
   end_target
 }
 
-build_module_link() {
+# Called in context of a module where CFLAGS, CPPFLAGS, LDFLAGS and LDLIBS are
+# module specific
+build_module_variables() {
+  printf 'CFLAGS.%s = %s\n' "$MODULE" "$CFLAGS"
+  printf 'CPPFLAGS.%s = %s\n' "$MODULE" "$CPPFLAGS"
+
   printf 'LIBRARIES.%s =' "$MODULE"
   if [ "$REQUIRE" ]; then
     printf ' $(TARGET)/lib/lib%s.a' $REQUIRE
@@ -127,10 +134,14 @@ build_module_link() {
   fi
   printf '\n'
 
-  printf 'MODULE_LDFLAGS.%s = %s' "$MODULE" "$LINKER"
+  printf 'LDFLAGS.%s = %s' "$MODULE" "$LDFLAGS"
+  if [ "$REQUIRE" ]; then printf ' $(LDFLAGS.%s)' $REQUIRE; fi
+  printf '\n'
+
+  printf 'LDLIBS.%s = %s' "$MODULE" "$LDLIBS"
   if [ "$REQUIRE" ]; then
     printf ' -l%s' $REQUIRE
-    printf ' $(MODULE_LDFLAGS.%s)' $REQUIRE
+    printf ' $(LDLIBS.%s)' $REQUIRE
   fi
   printf '\n'
 }
@@ -152,6 +163,7 @@ build_module_generated_headers() {
   printf '\n'
 }
 
+# Create common module targets, such as lib$MODULE.a and binary
 build_module_targets() {
   target_generic all "$MODULE"
   target_generic "$MODULE" "$LIBRARY"
@@ -198,6 +210,11 @@ build_makefile_header() {
   end_target
   target_phony all test clean
   end_target
+
+  echo "CFLAGS = $CFLAGS"
+  echo "CPPFLAGS = $CPPFLAGS"
+  echo "LDFLAGS = $LDFLAGS"
+  echo "LDLIBS = $LDLIBS"
 }
 
 build_list_tests_target() {
@@ -221,6 +238,7 @@ build_module_rules() {
 
     cd "$SOURCE/$MODULE_DIR"
 
+    unset CFLAGS CPPFLAGS LDFLAGS LDLIBS
     if [ -f module ]; then . ../$MODULE/module; fi
     for C in $MODULE_COMMANDS; do $C; done
   ); done
@@ -241,6 +259,7 @@ build_depend_rules() {
   fi
 }
 
+# Print entire generated makefile to standard output
 build_makefile() {
   build_makefile_header
 

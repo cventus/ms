@@ -1,2 +1,2 @@
-LINKER="-lm"
+LDLIBS="-lm"
 binary
