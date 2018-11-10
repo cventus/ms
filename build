@@ -2,11 +2,12 @@
 
 set -e
 
-: ${AR:=ar} \
-  ${BUILD_CONFIG:=./build.conf}
-readonly BUILD_CONFIG BUILD_HOME=$(dirname "$BUILD_CONFIG")
+: ${AR:=ar}
+: ${BUILD_CONFIG:=${SOURCE:-.}/build.conf}
+: ${DIRECTORY_TARGET_FILE:=.dir}
 
-readonly DIRECTORY_TARGET_FILE=.dir
+readonly BUILD_CONFIG SOURCE=$(dirname "$BUILD_CONFIG")
+readonly DIRECTORY_TARGET_FILE
 
 # Make "append FOO item1 item2 ..." and "contains FOO item" available for list
 # like variable FOO
@@ -52,7 +53,7 @@ decl_list MODULES
 
 def_list MAKEFILE_COMMANDS \
   build_module_rules \
-  build_directory_rules \
+  build_directory_variables \
   build_list_tests_target \
   build_depend_rules
 
@@ -62,32 +63,19 @@ def_list MODULE_COMMANDS \
   build_module_generated_headers \
   build_module_targets
 
-# Initialize with build configuration
 if [ -f "$BUILD_CONFIG" ]; then . "$BUILD_CONFIG"; fi
 
 if [ -z "$MODULES" ]; then
   echo "Build modules not defined in environment or $BUILD_CONFIG" >&2
   exit 1
 fi
+
 readonly MODULES
-
-# make path relative to build configuration file unless absolute
-build_path() {
-  if expr "$1" : "/" >/dev/null; then echo "$1"
-  else echo "$BUILD_HOME/$1"
-  fi
-}
-
-# Variables that can be overridden in the build configuration
-: ${TARGET:=target} \
-  ${BUILD_SOURCE_DIR:=src} \
-  ${BUILD_INCLUDE_DIR:=include}
-
-readonly TARGET BUILD_SOURCE_DIR BUILD_INCLUDE_DIR
-
-# Common cc flags
-readonly INCLUDE_FLAGS="-I\$(TARGET)/include -I\$(BUILD_HOME)/$BUILD_INCLUDE_DIR"
+readonly TARGET="${TARGET:=target}" SOURCE_INCLUDE="${SOURCE_INCLUDE:=include}"
 readonly DEPEND_FLAGS='-MMD -MP -MT $@ -MF'
+readonly INCLUDE_FLAGS="\
+-I\$(TARGET)/include\
+${SOURCE_INCLUDE:+$(printf ' -I$(SOURCE)/%s' $SOURCE_INCLUDE)}"
 
 # Module specific variables, defined when module configuration is sourced
 for L in SOURCES OBJECTS HEADERS REQUIRE LINKER TESTS; do
@@ -161,13 +149,14 @@ object_cmd() {
 # Usage: define_object <object> <source> [<cc flags> ...]
 define_object() {
   define_object_obj_=$1
-  define_object_src_="$MODULE_DIR/$2"
+  define_object_src_="\$(SOURCE)/$MODULE_DIR/$2"
   shift 2
 
   append OBJECTS "$define_object_obj_"
 
-  target_cc "$MODULE_OBJECT_DIR/$define_object_obj_" "$define_object_src_"
-  object_cmd "$MODULE_OBJECT_DIR/$define_object_obj_" "$define_object_src_" "$@"
+  target_cc "\$(TARGET)/obj/$MODULE/$define_object_obj_" "$define_object_src_"
+    object_cmd "\$(TARGET)/obj/$MODULE/$define_object_obj_" \
+      "$define_object_src_" "$@"
   end_target
 }
 
@@ -192,7 +181,7 @@ build_module_tests() {
   [ "$TESTS" ] && printf ' %s' $TESTS
   printf '\n'
 
-  target_phony "$MODULE"-test
+  target_phony "$MODULE-test"
   target_generic "$MODULE-test" "\$(MODULE_TESTS.$MODULE)"
   target_generic test "$MODULE"-test
 }
@@ -217,12 +206,12 @@ build_module_targets() {
 
   unset build_module_targets_obj_
   if [ "$OBJECTS" ]; then
-    build_module_targets_obj_=$(printf " $MODULE_OBJECT_DIR/%s" $OBJECTS)
+    build_module_targets_obj_=$(printf " \$(TARGET)/obj/$MODULE/%s" $OBJECTS)
   fi
 
   target_generic "$LIBRARY" $build_module_targets_obj_ '$(TARGET)/depend$D'
     ar_cmd -s "$LIBRARY" '$?'
-    ar_cmd "$DEPEND" '$(?:.o=.o.d)'
+    ar_cmd "\$(TARGET)/depend/make$MODULE.a" '$(?:.o=.o.d)'
   end_target
 
   if [ "$BINARY" ]; then
@@ -252,10 +241,11 @@ build_makefile_header() {
 
 build_list_tests_target() {
   target_generic list-tests
-    sh_cmd \
-      "for T in"$(printf ' $(MODULE_TESTS.%s)' $MODULES)"; do" \
-        'echo $$T;' \
-      'done'
+    sh_cmd printf '"%s\\n"' $(
+      for MODULE_DIR in $MODULES; do
+        printf ' $(MODULE_TESTS.%s)' "$(basename $MODULE_DIR)"
+      done
+    )
   end_target
   target_phony list-tests
 }
@@ -263,21 +253,20 @@ build_list_tests_target() {
 build_module_rules() {
   # Produce all normal rules (each ``module'' file evaluated in an
   # independent sub-shell)
-  for MODULE in $MODULES; do (
-    readonly MODULE
-    readonly MODULE_DIR="\$(BUILD_HOME)/$BUILD_SOURCE_DIR/$MODULE"
-    readonly DEPEND="\$(TARGET)/depend/make$MODULE.a"
+  for MODULE_DIR in $MODULES; do (
+    readonly MODULE=$(basename $MODULE_DIR)
+    readonly MODULE_DIR
     readonly LIBRARY="\$(TARGET)/lib/lib$MODULE.a"
-    readonly MODULE_OBJECT_DIR="\$(TARGET)/obj/$MODULE"
 
-    cd $(build_path "$BUILD_SOURCE_DIR/$MODULE")
+    cd "$SOURCE/$MODULE_DIR"
+
     if [ -f module ]; then . ../$MODULE/module; fi
     for C in $MODULE_COMMANDS; do $C; done
   ); done
 }
 
-build_directory_rules() {
-  echo "BUILD_HOME = $BUILD_HOME"
+build_directory_variables() {
+  echo "SOURCE = $SOURCE"
   echo "TARGET = $TARGET"
   echo "D = /$DIRECTORY_TARGET_FILE"
 }
@@ -311,7 +300,7 @@ build_makefile() {
           parent_dir = target
           sub(/\/[^\/]*$/, "", parent_dir)
           target_dirs[target] = parent_dir "$D"
-	  target = parent_dir "$D"
+          target = parent_dir "$D"
         }
       }
     }

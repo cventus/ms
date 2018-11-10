@@ -9,8 +9,8 @@ specialize_object() {
 }
 
 specialize_header() {
-  target_source "${3}rat.h" "$MODULE_DIR/rat.h"
-  cc_cmd -E -C $(cpp_macros "$@") \"$MODULE_DIR/rat.h\" '>"$@"'
+  target_source "${3}rat.h" "\$(SOURCE)/$MODULE_DIR/rat.h"
+  cc_cmd -E -C $(cpp_macros "$@") "\$(SOURCE)/$MODULE_DIR/rat.h" '>"$@"'
   end_target
 }
 
@@ -39,5 +39,6 @@ sh_cmd \
   "sed -n '/begin public rat.h/,/end public rat.h/p'" \
   "$(printf " \$(TARGET)/src/$MODULE/%srat.h" "" l ll)" \| \
   "sed '/\\(begin\\|end\\) public rat.h/d'" \| \
-  cat $MODULE_DIR/prolog.h - $MODULE_DIR/epilog.h '>$@'
+  "cat \$(SOURCE)/$MODULE_DIR/prolog.h - \$(SOURCE)/$MODULE_DIR/epilog.h" \
+  '>$@'
 end_target

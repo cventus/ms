@@ -6,12 +6,12 @@ export NM=${NM:-nm}
 # addcheck [<name>] <source>.c [CC options]
 addcheck()
 {
-  CHECK_SOURCE="$MODULE_DIR/$1"
+  CHECK_SOURCE="\$(SOURCE)/$MODULE_DIR/$1"
   CHECK_NAME=$(basename "$CHECK_SOURCE" .c)
 
   case "$2" in
   (-*) ;;
-  (?*.c) CHECK_SOURCE="$MODULE_DIR/$2"; shift;;
+  (?*.c) CHECK_SOURCE="\$(SOURCE)/$MODULE_DIR/$2"; shift;;
   esac
   shift
 
@@ -21,12 +21,12 @@ addcheck()
   CHECK_BINARY="\$(TARGET)/test/$MODULE/bin/$CHECK_NAME"
   CHECK_DEPDIR="\$(TARGET)/depend/test/$MODULE"
   CHECK_DEPEND="$CHECK_DEPDIR/make$CHECK_NAME.a"
-  CHECK_SCRIPT="\$(BUILD_HOME)/$BUILD_SOURCE_DIR/check/checkgen.awk"
+  CHECK_SCRIPT="\$(SOURCE)/src/check/checkgen.awk"
 
   append TESTS "$CHECK_BINARY"
 
   # Rule to compile test functions
-  target_cc $CHECK_OBJECT $CHECK_SOURCE
+  target_cc "$CHECK_OBJECT" "$CHECK_SOURCE"
     object_cmd $CHECK_OBJECT "$CHECK_SOURCE" "$@"
   end_target
 
