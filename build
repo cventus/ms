@@ -50,9 +50,9 @@ binary() { BINARY="${1:-$MODULE}"; }
 
 # Short-hand functions for defining rules
 target_generic() {
-  target_generic_target_=$1
+  printf '%s: ' "$1"
   shift
-  printf '%s: %s\n' "$target_generic_target_" "$*"
+  echo "$*"
 }
 
 target_phony() { target_generic .PHONY "$*"; }
