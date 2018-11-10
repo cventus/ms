@@ -2,6 +2,15 @@
 
 set -e
 
+# Selectively look for make-style variable assignments
+for A; do
+  case "$A" in
+  CFLAGS=*|CPPFLAGS=*|LDFLAGS=*|LDLIBS=*) eval "export '$A'";;
+  TARGET=*|SOURCE=*) eval "export '$A'";;
+  BUILD_CONFIG=*) eval "export '$A'";;
+  esac
+done
+
 : ${AR:=ar}
 : ${BUILD_CONFIG:=${SOURCE:-.}/build.conf}
 : ${DIRECTORY_TARGET_FILE:=.dir}
