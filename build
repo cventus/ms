@@ -60,7 +60,6 @@ target_source() { target_generic "\$(TARGET)/src/$MODULE/$@"; }
 target_include() { target_generic "\$(TARGET)/include/$@"; }
 target_cc() { target_generic "$@" "\$(MODULE_HEADERS.$MODULE)"; }
 target_ld() { target_generic "$@" "\$(MODULE_LINK.$MODULE)"; }
-target_bin() { target_cc "$@" "\$(MODULE_LINK.$MODULE)"; }
 end_target() { printf '\n'; }
 
 # Functions for adding rule commands
