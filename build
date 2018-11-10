@@ -65,7 +65,6 @@ end_target() { printf '\n'; }
 
 # Functions for adding rule commands
 sh_cmd() { printf '\t%s\n' "$*"; }
-rm_cmd() { sh_cmd rm -f -- "$*"; }
 ar_cmd() { sh_cmd '$(AR)' -rc "$*"; }
 
 # Output command to compile a single source file (add neccessary compilation
