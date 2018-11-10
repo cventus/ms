@@ -97,12 +97,6 @@ ld_cmd() {
     "$* \$(LDLIBS.$MODULE) \$(LDLIBS)"
 }
 
-# Output command to compile and link a single source file (add neccessary
-# linkage flags) and generate makefile rules at the specified path at the same
-# time.
-# Usage: ldmk_cmd <makefile rules path> <source file> [<cc args>...]
-ldmk_cmd() { ld_cmd "$INCLUDE_FLAGS" "$DEPEND_FLAGS" "$@"; }
-
 # Output command to compile a source file into an object with optional extra
 # compiler flags (with default compilation flags) and generate makefile rules
 # in the same directory as the object file (with a ".d" appended to the
