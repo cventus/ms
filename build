@@ -9,64 +9,29 @@ set -e
 readonly BUILD_CONFIG SOURCE=$(dirname "$BUILD_CONFIG")
 readonly DIRECTORY_TARGET_FILE
 
-# Make "append FOO item1 item2 ..." and "contains FOO item" available for list
-# like variable FOO
-decl_list() {
-  eval "
-    ${1}_append() { $1=\"\$$1\${$1:+ }\$*\"; }
-    ${1}_contains() { expr \" \$$1 \" : \".* \$1 \" >/dev/null; }
-  "
-}
-
-def_list() {
-  def_list_name_=$1
-  shift
-  eval "$def_list_name_=\"$*\""
-  decl_list "$def_list_name_"
-}
-
-append() {
-  append_arg_=$1
-  shift
-  "${append_arg_}_append" "$@"
-}
-
-contains() {
-  contains_arg_=$1
-  shift
-  "${contains_arg_}_contains" "$@"
-}
-
-globexists() {
-  test -f "$1"
-}
-
-# Make list functions available in build configuration file
-decl_list CFLAGS
-decl_list CPPFLAGS
-decl_list LDFLAGS
+contains() { expr " $1 " : ".* $2 " >/dev/null; }
+globexists() { test -f "$1"; }
 
 export CFLAGS LDFLAGS CPPFLAGS
 
-# List of modules in this build
-decl_list MODULES
+MAKEFILE_COMMANDS="\
+build_module_rules
+build_directory_variables
+build_list_tests_target
+build_depend_rules
+"
 
-def_list MAKEFILE_COMMANDS \
-  build_module_rules \
-  build_directory_variables \
-  build_list_tests_target \
-  build_depend_rules
-
-def_list MODULE_COMMANDS \
-  build_module_link \
-  build_module_tests \
-  build_module_generated_headers \
-  build_module_targets
+MODULE_COMMANDS="\
+build_module_link
+build_module_tests
+build_module_generated_headers
+build_module_targets
+"
 
 if [ -f "$BUILD_CONFIG" ]; then . "$BUILD_CONFIG"; fi
 
 if [ -z "$MODULES" ]; then
-  echo "Build modules not defined in environment or $BUILD_CONFIG" >&2
+  echo "MODULES not defined in environment or $BUILD_CONFIG" >&2
   exit 1
 fi
 
@@ -78,13 +43,9 @@ readonly INCLUDE_FLAGS="\
 ${SOURCE_INCLUDE:+$(printf ' -I$(SOURCE)/%s' $SOURCE_INCLUDE)}"
 
 # Module specific variables, defined when module configuration is sourced
-for L in SOURCES OBJECTS HEADERS REQUIRE LINKER TESTS; do
-  def_list $L
-done
+unset SOURCES OBJECTS HEADERS REQUIRE LINKER TESTS BINARY
 
-BINARY=
-
-require() { append REQUIRE "$@"; }
+require() { REQUIRE="$REQUIRE $*"; }
 binary() { BINARY="${1:-$MODULE}"; }
 
 # Short-hand functions for defining rules
@@ -152,7 +113,7 @@ define_object() {
   define_object_src_="\$(SOURCE)/$MODULE_DIR/$2"
   shift 2
 
-  append OBJECTS "$define_object_obj_"
+  OBJECTS="$OBJECTS $define_object_obj_"
 
   target_cc "\$(TARGET)/obj/$MODULE/$define_object_obj_" "$define_object_src_"
     object_cmd "\$(TARGET)/obj/$MODULE/$define_object_obj_" \
@@ -200,8 +161,10 @@ build_module_targets() {
   target_phony "$MODULE" "lib$MODULE.a"
   end_target
 
-  # Default behavior when module configuration defines no sources nor objects.
-  if [ -z "$SOURCES$OBJECTS" ] && globexists *.c; then append SOURCES *.c; fi
+  # The default behavior when the module configuration defines neither sources
+  # nor objects is to treat all source files in MODULE_DIR as source files,
+  # which is convenient for small modules without even a module configuration.
+  if [ -z "$SOURCES$OBJECTS" ] && globexists *.c; then SOURCES=$(echo *.c); fi
   for S in $SOURCES; do define_object "$(basename $S .c).o" $S; done
 
   unset build_module_targets_obj_

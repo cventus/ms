@@ -23,7 +23,7 @@ addcheck()
   CHECK_DEPEND="$CHECK_DEPDIR/make$CHECK_NAME.a"
   CHECK_SCRIPT="\$(SOURCE)/src/check/checkgen.awk"
 
-  append TESTS "$CHECK_BINARY"
+  TESTS="$TESTS $CHECK_BINARY"
 
   # Rule to compile test functions
   target_cc "$CHECK_OBJECT" "$CHECK_SOURCE"
