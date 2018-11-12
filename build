@@ -211,12 +211,10 @@ build_module_targets() {
 build_makefile_header() {
   target_generic all
   target_generic test
-  target_generic clean
-    sh_cmd find "$TARGET" -type f -exec rm -- {} '\;'
-  end_target
+  target_generic clean \; find "$TARGET" -type f -exec rm -- {} '\;'
   target_phony all test clean
-  end_target
 
+  echo
   echo "SOURCE = $SOURCE"
   echo "TARGET = $TARGET"
   echo "D = /$DIRECTORY_TARGET_FILE"
@@ -230,11 +228,9 @@ build_makefile_header() {
 
 build_list_tests_target() {
   target_generic list-tests
-    sh_cmd printf '"%s\\n"' $(
-      for MODULE_DIR in $MODULES; do
-        printf ' $(TESTS.%s)' "$(basename $MODULE_DIR)"
-      done
-    )
+    sh_cmd printf '"%s\\n"' $(for MODULE_DIR in $MODULES; do
+      printf ' $(TESTS.%s)' "$(basename $MODULE_DIR)"
+    done)
   end_target
   target_phony list-tests
 }
