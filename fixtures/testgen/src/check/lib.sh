@@ -42,7 +42,8 @@ addcheck()
 
   # Rule to link the test executable
   target_ld "$CHECK_BINARY" \
-    "$CHECK_OBJECT" "$CHECK_GENOBJ " "$LIBRARY" "\$(TARGET)/lib/libcheck.a" \
+    "$CHECK_OBJECT" "$CHECK_GENOBJ " \
+    "\$(TARGET)/lib/lib$MODULE.a" "\$(TARGET)/lib/libcheck.a" \
     "$CHECK_DEPDIR\$D"
 
     # Add source dependencies to archive

@@ -166,26 +166,31 @@ build_module_generated_headers() {
 
 # Create common module targets, such as lib$MODULE.a and binary
 build_module_targets() {
-  target_generic all "$MODULE"
-  target_generic "$MODULE" "$LIBRARY"
-  target_generic "lib$MODULE.a" "$LIBRARY"
-  target_phony "$MODULE" "lib$MODULE.a"
-  end_target
-
   # The default behavior when the module configuration defines neither sources
   # nor objects is to treat all source files in MODULE_DIR as source files,
   # which is convenient for small modules without even a module configuration.
   if [ -z "$SOURCES$OBJECTS" ] && globexists *.c; then SOURCES=$(echo *.c); fi
   for S in $SOURCES; do define_object "$(basename $S .c).o" $S; done
 
-  unset build_module_targets_obj_
   if [ "$OBJECTS" ]; then
-    build_module_targets_obj_=$(printf " \$(TARGET)/obj/$MODULE/%s" $OBJECTS)
+    printf 'OBJECTS.%s = \\\n' "$MODULE"
+    printf ' $(TARGET)/obj/'"$MODULE"'/%s \\\n' $OBJECTS
+    echo
   fi
 
-  target_generic "$LIBRARY" $build_module_targets_obj_ '$(TARGET)/depend$D'
-    ar_cmd -s "$LIBRARY" '$?'
-    ar_cmd "\$(TARGET)/depend/make$MODULE.a" '$(?:.o=.o.d)'
+  # $1 = library path
+  set "\$(TARGET)/lib/lib$MODULE.a"
+
+  target_phony "$MODULE" "lib$MODULE.a"
+  target_generic all "$MODULE"
+  target_generic "$MODULE" "$1"
+  target_generic "lib$MODULE.a" "$1"
+  echo
+
+  target_generic "$1" "\$(OBJECTS.$MODULE)" '$(TARGET)/depend$D'
+    sh_cmd rm -f "$1" "\$(TARGET)/depend/make$MODULE.a"
+    ar_cmd -s "$1" "\$(OBJECTS.$MODULE)"
+    ar_cmd "\$(TARGET)/depend/make$MODULE.a" "\$(OBJECTS.$MODULE:.o=.o.d)"
   end_target
 
   if [ "$BINARY" ]; then
@@ -196,8 +201,8 @@ build_module_targets() {
       target_phony "$BINARY"
     fi
 
-    target_ld "\$(TARGET)/bin/$BINARY" "$LIBRARY"
-      ld_cmd "$LIBRARY" -o "\$(TARGET)/bin/$BINARY"
+    target_ld "\$(TARGET)/bin/$BINARY" "$1"
+      ld_cmd "$1" -o "\$(TARGET)/bin/$BINARY"
     end_target
   fi
 }
@@ -238,12 +243,8 @@ build_module_rules() {
   # Produce all normal rules (each ``module'' file evaluated in an
   # independent sub-shell)
   for MODULE_DIR in $MODULES; do (
-    readonly MODULE=$(basename $MODULE_DIR)
-    readonly MODULE_DIR
-    readonly LIBRARY="\$(TARGET)/lib/lib$MODULE.a"
-
+    readonly MODULE_DIR MODULE=$(basename $MODULE_DIR)
     cd "$SOURCE/$MODULE_DIR"
-
     unset CFLAGS CPPFLAGS LDFLAGS LDLIBS
     if [ -f module ]; then . ../$MODULE/module; fi
     for C in $MODULE_COMMANDS; do $C; done
@@ -263,34 +264,36 @@ build_depend_rules() {
 build_makefile() {
   build_makefile_header
 
-  for C in $MAKEFILE_COMMANDS; do $C; done | awk '
-  { buffer[n++] = $0; m++; line = sprintf("%s%*s", line, length($0) - 1, $0); }
+  for C in $MAKEFILE_COMMANDS; do $C; done | LC_ALL=C awk '
+  # Save all lines in a buffer and also expand escaped lines
+  { buffer[n++] = $0; m++; line = line substr($0, 1, length($0) - /\\$/); }
 
-  /[^\\]$/ && line !~ /^\t/ {
-    sub(/#.*$/, "", line)
-    gsub(/\$[{(][^:]*:[^=]*=[^})]*[)}]/, "", line)
-    if (line ~ /^[^:=]*=/) {
-      n -= m
-      for (i = 0; i < m; i++) print buffer[n + i]
-    } else if (line ~ /[^:]{1,}:/) {
-      m = split(line, targets, /[ \t:]{1,}/)
-      for (i = 1; i <= m; i++) {
-        target = targets[i]
-        while (target ~ /\$[({]TARGET[^})]*[)]\/./) {
-          parent_dir = target
-          sub(/\/[^\/]*$/, "", parent_dir)
-          target_dirs[target] = parent_dir "$D"
-          target = parent_dir "$D"
+  /^$/ || /[^\\]$/ {
+    if (line !~ /^\t/) {
+      sub(/#.*$/, "", line)
+      gsub(/\$[{(][^{($:]*:[^({$})=]*=[^({$})]*[)}]/, "", line)
+      if (line ~ /^[^:=]{1,}=/) { // variable definition
+        n -= m
+        for (i = 0; i < m; i++) { print buffer[n + i]; }
+      } else if (line ~ /[^:]{1,}:/) { // rule definition
+        m = split(line, targets, /[ \t:]{1,}/)
+        for (i = 1; i <= m; i++) {
+          target = targets[i]
+          while (target ~ /\$[({]TARGET[^})]*[)]\/./) {
+            parent_dir = target
+            sub(/\/[^\/]*$/, "", parent_dir)
+            target_dirs[target] = parent_dir "$D"
+            target = parent_dir "$D"
+          }
         }
       }
     }
+    m = 0;
+    line = "";
   }
 
-  { m = 0; line = ""; }
-
   END {
-    print ""
-    for (i = 0; i < n; i++) print buffer[i];
+    for (i = 0; i < n; i++) { print buffer[i]; }
     if (length(parent_dir) > 0) {
       for (t in target_dirs) {
         if (t ~ /\$D$/) printf("\n%s \\", t) | "sort | uniq"
