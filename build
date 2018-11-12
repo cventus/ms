@@ -13,10 +13,9 @@ done
 
 : ${AR:=ar}
 : ${BUILD_CONFIG:=${SOURCE:-.}/build.conf}
-: ${DIRECTORY_TARGET_FILE:=.dir}
 
 readonly BUILD_CONFIG SOURCE=$(dirname "$BUILD_CONFIG")
-readonly DIRECTORY_TARGET_FILE
+readonly DIRECTORY_TARGET_FILE=.dir
 
 contains() { expr " $1 " : ".* $2 " >/dev/null; }
 globexists() { test -f "$1"; }
