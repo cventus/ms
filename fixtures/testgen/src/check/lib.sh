@@ -19,7 +19,7 @@ addcheck()
   CHECK_GENSRC="\$(TARGET)/test/$MODULE/src/$CHECK_NAME.check.c"
   CHECK_GENOBJ="\$(TARGET)/test/$MODULE/obj/$CHECK_NAME.check.o"
   CHECK_BINARY="\$(TARGET)/test/$MODULE/bin/$CHECK_NAME"
-  CHECK_DEPDIR="\$(TARGET)/depend/test/$MODULE"
+  CHECK_DEPDIR="\$(TARGET)/make/test/$MODULE"
   CHECK_DEPEND="$CHECK_DEPDIR/make$CHECK_NAME.a"
   CHECK_SCRIPT="\$(SOURCE)/src/check/checkgen.awk"
 

@@ -14,5 +14,5 @@ directory_must_be_empty() {
 directory_must_exist target
 directory_must_be_empty target/bin
 directory_must_be_empty target/lib
-directory_must_be_empty target/depend
+directory_must_be_empty target/make
 directory_must_be_empty target/obj/main
