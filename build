@@ -11,13 +11,11 @@ for A; do
   esac
 done
 
-: ${AR:=ar}
-: ${BUILD_CONFIG:=${SOURCE:-.}/build.conf}
+: ${AR:=ar} ${BUILD_CONFIG:=${SOURCE:-.}/build.conf}
 
 readonly BUILD_CONFIG SOURCE=$(dirname "$BUILD_CONFIG")
 readonly DIRECTORY_TARGET_FILE=.dir
 
-contains() { expr " $1 " : ".* $2 " >/dev/null; }
 globexists() { test -f "$1"; }
 
 export CFLAGS CPPFLAGS LDFLAGS LDLIBS
@@ -36,7 +34,6 @@ build_module_targets
 "
 
 if [ -f "$BUILD_CONFIG" ]; then . "$BUILD_CONFIG"; fi
-
 if [ -z "$MODULES" ]; then
   echo "MODULES not defined in environment or $BUILD_CONFIG" >&2
   exit 1
@@ -56,12 +53,7 @@ require() { REQUIRE="$REQUIRE $*"; }
 binary() { BINARY="${1:-$MODULE}"; }
 
 # Short-hand functions for defining rules
-target_generic() {
-  printf '%s: ' "$1"
-  shift
-  echo "$*"
-}
-
+target_generic() { printf '%s: ' "$1"; shift; echo "$*"; }
 target_phony() { target_generic .PHONY "$*"; }
 target_source() { target_generic "\$(TARGET)/src/$MODULE/$@"; }
 target_include() { target_generic "\$(TARGET)/include/$@"; }
@@ -110,15 +102,13 @@ object_cmd() {
 # Output a makefile rule to compile an object for a module.
 # Usage: define_object <object> <source> [<cc flags> ...]
 define_object() {
-  define_object_obj_=$1
+  OBJECTS="$OBJECTS $1"
+  define_object_obj_="\$(TARGET)/obj/$MODULE/$1"
   define_object_src_="\$(SOURCE)/$MODULE_DIR/$2"
   shift 2
 
-  OBJECTS="$OBJECTS $define_object_obj_"
-
-  target_cc "\$(TARGET)/obj/$MODULE/$define_object_obj_" "$define_object_src_"
-    object_cmd "\$(TARGET)/obj/$MODULE/$define_object_obj_" \
-      "$define_object_src_" "$@"
+  target_cc "$define_object_obj_" "$define_object_src_"
+    object_cmd "$define_object_obj_" "$define_object_src_" "$@"
   end_target
 }
 
@@ -153,8 +143,7 @@ build_module_tests() {
   printf '\n'
 
   target_phony "$MODULE-test"
-  target_generic "$MODULE-test" "\$(TESTS.$MODULE)"
-  target_generic test "$MODULE"-test
+  target_generic "test $MODULE-test" "\$(TESTS.$MODULE)"
 }
 
 build_module_generated_headers() {
@@ -173,8 +162,8 @@ build_module_targets() {
   for S in $SOURCES; do define_object "$(basename $S .c).o" $S; done
 
   if [ "$OBJECTS" ]; then
-    printf 'OBJECTS.%s = \\\n' "$MODULE"
-    printf ' $(TARGET)/obj/'"$MODULE"'/%s \\\n' $OBJECTS
+    printf 'OBJECTS.%s =' "$MODULE"
+    printf '\\\n $(TARGET)/obj/'"$MODULE"'/%s' $OBJECTS
     echo
   fi
 
@@ -182,9 +171,7 @@ build_module_targets() {
   set "\$(TARGET)/lib/lib$MODULE.a"
 
   target_phony "$MODULE" "lib$MODULE.a"
-  target_generic all "$MODULE"
-  target_generic "$MODULE" "$1"
-  target_generic "lib$MODULE.a" "$1"
+  target_generic "all $MODULE lib$MODULE.a" "$1"
   echo
 
   target_generic "$1" "\$(OBJECTS.$MODULE)" '$(TARGET)/depend$D'
@@ -194,13 +181,11 @@ build_module_targets() {
   end_target
 
   if [ "$BINARY" ]; then
-    target_generic "$MODULE" "\$(TARGET)/bin/$BINARY"
-
+    target_generic "all $MODULE" "\$(TARGET)/bin/$BINARY"
     if [ "$BINARY" != "$MODULE" ]; then
       target_generic "$BINARY" "\$(TARGET)/bin/$BINARY"
       target_phony "$BINARY"
     fi
-
     target_ld "\$(TARGET)/bin/$BINARY" "$1"
       ld_cmd "$1" -o "\$(TARGET)/bin/$BINARY"
     end_target
