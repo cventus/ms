@@ -47,7 +47,7 @@ addcheck()
     "$CHECK_DEPDIR\$D"
 
     # Add source dependencies to archive
-    ar_cmd "$CHECK_DEPEND" "$CHECK_OBJECT.d" "$CHECK_GENOBJ.d"
+    ar_cmd "$CHECK_DEPEND" "${CHECK_OBJECT%.o}.d" "${CHECK_GENOBJ%.o}.d"
 
     # Link test executable
     ld_cmd \

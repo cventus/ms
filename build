@@ -96,7 +96,7 @@ ld_cmd() {
 object_cmd() {
   object_cmd_obj_="$1"
   shift 1
-  ccmk_cmd "$object_cmd_obj_.d" -o "$object_cmd_obj_" -c "$@"
+  ccmk_cmd "${object_cmd_obj_%.o}.d" -o "$object_cmd_obj_" -c "$@"
 }
 
 # Output a makefile rule to compile an object for a module.
@@ -177,7 +177,7 @@ build_module_targets() {
   target_generic "$1" "\$(OBJECTS.$MODULE)" '$(TARGET)/depend$D'
     sh_cmd rm -f "$1" "\$(TARGET)/depend/make$MODULE.a"
     ar_cmd -s "$1" "\$(OBJECTS.$MODULE)"
-    ar_cmd "\$(TARGET)/depend/make$MODULE.a" "\$(OBJECTS.$MODULE:.o=.o.d)"
+    ar_cmd "\$(TARGET)/depend/make$MODULE.a" "\$(OBJECTS.$MODULE:.o=.d)"
   end_target
 
   if [ "$BINARY" ]; then
@@ -236,9 +236,7 @@ build_module_rules() {
 build_depend_rules() {
   # Include source header dependencies
   if [ -d "$TARGET/depend" ]; then
-    find "$TARGET/depend" \
-      -name '*.a' -exec $AR -p {} \; -o \
-      -name '*.d' -exec cat {} \;
+    find "$TARGET/depend"  -name 'make*.a' -exec $AR -p {} \;
   fi
 }
 
