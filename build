@@ -221,13 +221,14 @@ build_list_tests_target() {
 }
 
 build_module_rules() {
-  # Produce all normal rules (each ``module'' file evaluated in an
+  echo
+  # Produce all normal rules (each ``module.sh'' file evaluated in an
   # independent sub-shell)
   for MODULE_DIR in $MODULES; do (
     readonly MODULE_DIR MODULE=$(basename $MODULE_DIR)
     cd "$SOURCE/$MODULE_DIR"
     unset CFLAGS CPPFLAGS LDFLAGS LDLIBS
-    if [ -f module ]; then . ../$MODULE/module; fi
+    if [ -f module.sh ]; then . ../$MODULE/module.sh; fi
     for C in $MODULE_COMMANDS; do $C; done
   ); done
 }
