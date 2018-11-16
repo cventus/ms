@@ -50,7 +50,6 @@ ${SOURCE_INCLUDE:+$(printf ' -I$(SOURCE)/%s' $SOURCE_INCLUDE)}"
 unset SOURCES OBJECTS HEADERS REQUIRE TESTS BINARY
 
 require() { REQUIRE="$REQUIRE $*"; }
-binary() { BINARY="${1:-$MODULE}"; }
 
 # Short-hand functions for defining rules
 target_generic() { printf '%s: ' "$1"; shift; echo "$*"; }
@@ -109,6 +108,19 @@ define_object() {
 
   target_cc "$define_object_obj_" "$define_object_src_"
     object_cmd "$define_object_obj_" "$define_object_src_" "$@"
+  end_target
+}
+
+define_binary() {
+  target_generic "all $MODULE" "\$(TARGET)/bin/${1:-$MODULE}"
+
+  if [ "$1" -a "$1" != "$MODULE" ]; then
+    target_generic "$1" "\$(TARGET)/bin/$1"
+    target_phony "$1"
+  fi
+
+  target_ld "\$(TARGET)/bin/${1:-$MODULE}" "\$(TARGET)/lib/lib$MODULE.a"
+    ld_cmd "\$(TARGET)/lib/lib$MODULE.a" -o "\$(TARGET)/bin/${1:-$MODULE}"
   end_target
 }
 
@@ -179,17 +191,6 @@ build_module_targets() {
     ar_cmd -s "$1" "\$(OBJECTS.$MODULE)"
     ar_cmd "\$(TARGET)/make/make$MODULE.a" "\$(OBJECTS.$MODULE:.o=.d)"
   end_target
-
-  if [ "$BINARY" ]; then
-    target_generic "all $MODULE" "\$(TARGET)/bin/$BINARY"
-    if [ "$BINARY" != "$MODULE" ]; then
-      target_generic "$BINARY" "\$(TARGET)/bin/$BINARY"
-      target_phony "$BINARY"
-    fi
-    target_ld "\$(TARGET)/bin/$BINARY" "$1"
-      ld_cmd "$1" -o "\$(TARGET)/bin/$BINARY"
-    end_target
-  fi
 }
 
 # Added first as-is to output makefile

@@ -1,3 +1,3 @@
 require	fizz buzz
-BINARY=fizzbuzz
+define_binary fizzbuzz
 SOURCES=main.c

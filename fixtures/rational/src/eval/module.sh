@@ -1,2 +1,2 @@
 require rational
-binary
+define_binary

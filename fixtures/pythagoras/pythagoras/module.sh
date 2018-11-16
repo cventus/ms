@@ -1,2 +1,2 @@
 LDLIBS="-lm"
-binary
+define_binary

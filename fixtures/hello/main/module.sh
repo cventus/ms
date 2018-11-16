@@ -1,2 +1,2 @@
 SOURCES=main.c
-BINARY=greet
+define_binary greet
