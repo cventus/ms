@@ -1,98 +1,89 @@
-COMPONO - A BUILD SCRIPT FOR MODULAR C CODE
--------------------------------------------
+MS - MAKE WITH SHELL
+--------------------
 
-Compono is a shell script that uses make to build C source that has been
-organized into build modules. Each build module is a small local library and
-each can optionally be compiled into executable binaries. Build modules can be
-used to separate platform specific implementations, creating multiple binaries,
-and more generally for organizing code.
+ms is a shell script that generates rules for make and builds C source
+organized into build modules. A build module puts a boundary around a set of
+source files and can contain rules for generating sources or headers. Build
+modules can be used to separate platform specific implementations, create
+multiple binaries, and more generally for organizing code.
 
 USAGE
 -----
 
-A copy of the "build" file should be added to the project. It can be invoked
-like make, i.e. macro definitions and targets to build. If invoked without
-parameters then everything is compiled.
+Make the "ms" file available in your PATH or copy it and distribute it with
+your code base. It can be used like make(1), i.e. most command line arguments
+like macro definitions and targets are passed straight on to make.  The
+expected directory structure has a build configuration file named "build.sh" at
+the root and one or more sub-directories for build modules. 
 
 BUILD MODULES
 -------------
 
-A compono project is defined by a build configuration file named "build.conf"
-and one or more build modules. Build modules are subdirectories of "./src/",
-and can contain a module configuration file, which is shell script. The module
-configuration files list the sources that belong to the module and can contain
-custom build rules, e.g. for code generation.
+Build modules are directories which contain source files and a module
+configuration file named "module.sh". The module configuration file is a shell
+script that is invoked when ms is executed and should list source files that
+belong to the build in the SOURCES variable. The working directory is that of
+the module, so e.g. globbing *.c lists all immediate source files in the
+module directory. Makefile rules are generated for each listed source but any
+standard output is also passed on to make(1) and variables, rules, and commands
+can be dynamically generated here.
+
+The sources are compiled into a static library which is linked to any binary
+that depends on the module, such as the primary binary output or tests. For
+this reason it is a good idea to place main functions in separate source files
+so that functions in other object files in the library can be linked in with
+other definitions of main. Each build module can be linked into a binary if
+specified in the module configuration.
+
+If a module generates header files then it is necessary to list them lit should 
+
+The module configuration can communicate with ms by defining the following
+shell variables:
+
+ - BINARY: name of binary 
+ - SOURCES: list of source files 
+ - OBJECTS: list of object files to include in the module library for which
+   non-default Makefile rules have been generated
+ - HEADERS: list of generated header files
+ - REQUIRE: list of modules dependencies
+ - TESTS: list of test binaries
+
+where a list is a white-space delimited sequence. Additionally, if the common
+make variables CFLAGS, CPPFLAGS, LDFLAGS, and LDLIBS are defined in the module
+configuration file, they are applied only for the module's members.
+
+When "module.sh" is invoked the following variables are defined:
+
+ - SOURCE: the path of "build.sh" 
+ - TARGET: the base path where are build outputs should be located
+ - MODULE: the name (directory filename) of the module
+ - MODULE_DIR: the path from $SOURCE to the module
 
 An example project which have two modules, "data" and "cmd", might contain the
 following files:
 
-    ./build
-    ./build.conf
+    ./ms
+    ./build.sh
 
-    ./src/data/module
+    ./include/data.h
+
+    ./src/data/module.sh
     ./src/data/load.c
     ./src/data/store.c
-    ./src/data/include/data.h
 
-    ./src/cmd/module
+    ./src/cmd/module.sh
     ./src/cmd/main.c
 
-The base directory contains "build" and "build.conf". When "build" is executed
-it reads "build.conf", which may contain arbitrary shell functions and code.
-Its main purpose, however, is to specify which modules are part of the build
+The base directory contains "ms" and "build.sh". When "ms" is executed it reads
+"build.sh", which may contain arbitrary shell functions and code. Its main
+purpose, however, is to specify which modules are part of the build
 and this is done by defining the MODULES variable. In this case it could
 contain the line
 
-    MODULES="data cmd"
+    MODULES="src/data src/cmd"
 
-A build module has a name, which is the directory name, an optional
-configuration file named "module", and consists of build members. Each member
-"foo" is built from a source file, generally with the same name "foo.c", is
-turned into an object file "foo.o", and has header file dependencies tracked
-by a file called "foo.d". All object files from one build module are collected
-in the module library ./target/lib/lib<module>.a and every dependency file in
-a companion archive ./target/dep/<module>.a, which can be inspected using the
-ar tool. E.g. "ar p ./target/dep/<module>.a" prints all member rules to
-standard output.
-
-Module configuration files should be named "module" and are shell scripts which
-are executed by the build script. Their working directory is the module
-directory itself and their standard outputs are directed straight to the
-generated make file. This way it's possible to produce arbitrary build rules by
-writing to standard output, however, it's preferable to use the utility
-commands REQUIRE, BINARY, SOURCE, OBJECT, and LINKER, which are described
-below.
-
-BUILD UTILITIES
----------------
-
-REQUIRE adds its arguments to the module prerequisites, which are the direct
-build dependencies. When a module is built, all of its prerequisite modules are
-built first, which might include generated headers. The external headers of
-each prerequisit module is added to the include search paths when a module's
-objects are built. When a binary module is built it is also linked against the
-required modules.
-
-BINARY marks the module as a binary. If an argument is provided then that
-specifies the binary output name. The default binary name is the name of the
-module directory. Compiled binaries are located under the ./target/bin
-directory.
-
-SOURCE adds one member (object) per source file argument with default build
-rules. If it is not specified, then all C sources in the module directory are
-included by default. This default behavior makes the module configuration file
-optional in simple cases, but it is often good to be specific about which files
-belong to a module.
-
-OBJECT gives more control over how files are compiled and takes at two or more
-arguments. The first is the object name e.g. "foo.o" and the second the file
-name, e.g. "foo.c". Any following arguments are file specific CFLAGS.
-
-LINKER arguments are passed along with LDFLAGS whenever a binary is compiled
-which depends on this module.
-
-TESTING COMPONO
----------------
+TESTING MS
+----------
 
 Run the ./test command in the root directory which outputs minimal TAP to
 standard output. Test-run outputs are stored in the ./logs/ directory.

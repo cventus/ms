@@ -16,7 +16,7 @@ fixture() {
 }
 
 build() {
-  $dir/build $@
+  $dir/ms $@
 }
 
 build_or_fail() {
