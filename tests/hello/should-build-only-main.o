@@ -1,0 +1,6 @@
+fixture hello
+
+build_or_fail make:main.o
+
+directory_must_exist target
+file_must_exist target/obj/main/main.o

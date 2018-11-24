@@ -60,7 +60,7 @@ generate_rules() {
     echo "# Broken Makefile"
     err=1
   fi
-  build Makefile
+  build show:Makefile
   exit $err
 }
 

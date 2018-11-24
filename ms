@@ -1,55 +1,5 @@
 #!/bin/sh
-
 set -e
-
-# Selectively look for make-style variable assignments
-for A; do
-  case "$A" in
-  CFLAGS=*|CPPFLAGS=*|LDFLAGS=*|LDLIBS=*) eval "export '$A'";;
-  TARGET=*|SOURCE=*) eval "export '$A'";;
-  BUILD_CONFIG=*) eval "export '$A'";;
-  esac
-done
-
-: ${AR:=ar} ${BUILD_CONFIG:=${SOURCE:-.}/build.conf}
-
-readonly BUILD_CONFIG SOURCE=$(dirname "$BUILD_CONFIG")
-readonly DIRECTORY_TARGET_FILE=.dir
-
-globexists() { test -f "$1"; }
-
-export CFLAGS CPPFLAGS LDFLAGS LDLIBS
-
-MAKEFILE_COMMANDS="\
-build_module_rules
-build_list_tests_target
-build_depend_rules
-"
-
-MODULE_COMMANDS="\
-build_module_variables
-build_module_tests
-build_module_generated_headers
-build_module_targets
-"
-
-if [ -f "$BUILD_CONFIG" ]; then . "$BUILD_CONFIG"; fi
-if [ -z "$MODULES" ]; then
-  echo "MODULES not defined in environment or $BUILD_CONFIG" >&2
-  exit 1
-fi
-
-readonly MODULES
-readonly TARGET="${TARGET:=target}" SOURCE_INCLUDE="${SOURCE_INCLUDE:=include}"
-readonly DEPEND_FLAGS='-MMD -MP -MT $@ -MF'
-readonly INCLUDE_FLAGS="\
--I\$(TARGET)/include\
-${SOURCE_INCLUDE:+$(printf ' -I$(SOURCE)/%s' $SOURCE_INCLUDE)}"
-
-# Module specific variables, defined when module configuration is sourced
-unset SOURCES OBJECTS HEADERS REQUIRE TESTS BINARY
-
-require() { REQUIRE="$REQUIRE $*"; }
 
 # Short-hand functions for defining rules
 target_generic() { printf '%s: ' "$1"; shift; echo "$*"; }
@@ -124,6 +74,19 @@ define_binary() {
   end_target
 }
 
+build_read_config() {
+  if [ -f "$BUILD_CONFIG" ]; then . "$BUILD_CONFIG"; fi
+  if [ -z "$MODULES" ]; then
+    echo "MODULES not defined in environment or $BUILD_CONFIG" >&2
+    exit 1
+  fi
+
+  readonly TARGET="${TARGET:=target}" SOURCE_INCLUDE="${SOURCE_INCLUDE:=include}"
+  readonly MODULES DEPEND_FLAGS='-MMD -MP -MT $@ -MF' INCLUDE_FLAGS="\
+-I\$(TARGET)/include\
+${SOURCE_INCLUDE:+$(printf ' -I$(SOURCE)/%s' $SOURCE_INCLUDE)}"
+}
+
 # Called in context of a module where CFLAGS, CPPFLAGS, LDFLAGS and LDLIBS are
 # module specific
 build_module_variables() {
@@ -164,6 +127,8 @@ build_module_generated_headers() {
   [ "$REQUIRE" ] && printf ' $(HEADERS.%s)' $REQUIRE
   printf '\n'
 }
+
+globexists() { test -f "$1"; }
 
 # Create common module targets, such as lib$MODULE.a and binary
 build_module_targets() {
@@ -226,9 +191,11 @@ build_module_rules() {
   # Produce all normal rules (each ``module.sh'' file evaluated in an
   # independent sub-shell)
   for MODULE_DIR in $MODULES; do (
+    require() { REQUIRE="$REQUIRE $*"; }
     readonly MODULE_DIR MODULE=$(basename $MODULE_DIR)
     cd "$SOURCE/$MODULE_DIR"
     unset CFLAGS CPPFLAGS LDFLAGS LDLIBS
+    unset SOURCES OBJECTS HEADERS REQUIRE TESTS
     if [ -f module.sh ]; then . ../$MODULE/module.sh; fi
     for C in $MODULE_COMMANDS; do $C; done
   ); done
@@ -260,7 +227,7 @@ build_makefile() {
         m = split(line, targets, /[ \t:]{1,}/)
         for (i = 1; i <= m; i++) {
           target = targets[i]
-          while (target ~ /\$[({]TARGET[^})]*[)]\/./) {
+          while (target ~ /\$[({]TARGET[^})]*[})]\/./) {
             parent_dir = target
             sub(/\/[^\/]*$/, "", parent_dir)
             target_dirs[target] = parent_dir "$D"
@@ -281,14 +248,94 @@ build_makefile() {
         printf("\n%s \\", target_dirs[t]) | "sort | uniq"
       }
       close("sort | uniq")
-      print ":; test -d $(@D) || mkdir $(@D); touch $@;\n"
+      printf(":\n\ttest -d $(@D) || mkdir $(@D)\n\ttouch $@\n\n")
       for (t in target_dirs) printf("%s: %s\n", t, target_dirs[t]) | "sort"
       close("sort")
     }
   }'
 }
 
-case "$*" in
-[Mm]akefile) build_makefile;;
-*) build_makefile | ${MAKE:-make} -rf- "$@";;
-esac
+build_targets() {
+  awk -v target_dir="$TARGET" '
+  { line = line substr($0, 1, length($0) - /\\$/); }
+
+  /[^\\]$/ {
+    if (line !~ /^\t/) {
+      sub(/#.*$/, "", line)
+      gsub(/\$[{(][^{($:]*:[^({$})=]*=[^({$})]*[)}]/, "", line)
+      if (line ~ /[^:=]{1,}:/) {
+        n = split(line, targets, /[ \t:]{1,}/)
+        for (i = 1; i <= n; i++) {
+	  target = targets[i]
+          if (target ~ /^\$[({]TARGET[})]/ && target !~ /\$D/) {
+	    sub(/^\$[({]TARGET[})]/, target_dir, target)
+            print target
+          }
+        }
+      }
+    }
+    line = "";
+  }' | LC_ALL=C sort | uniq
+}
+
+MAKE_ARGUMENTS=''; SHOW_TARGETS=''; MAKE_TARGETS='';
+i=1
+# Remove phony targets like "show:foo" or "make:bar" from "$@" and store in
+# SHOW_TARGETS and MAKE_TARGETS
+for ARG; do
+  case "$ARG" in
+  show:*) SHOW_TARGETS="$SHOW_TARGETS ${ARG#show:}";;
+  make:) MAKE_TARGETS="$MAKE_TARGETS .";;
+  make:*) MAKE_TARGETS="$MAKE_TARGETS ${ARG#make:}";;
+  *) MAKE_ARGUMENTS="$MAKE_ARGUMENTS \"\${$i}\"";;
+  esac
+  i=$((i + 1))
+done
+eval "set -- $MAKE_ARGUMENTS"
+for ARG; do
+  case "$ARG" in
+  CFLAGS=*|CPPFLAGS=*|LDFLAGS=*|LDLIBS=*|TARGET=*|SOURCE=*|BUILD_CONFIG=*|AR=*)
+    export "$ARG";;
+  esac
+done
+unset i ARG MAKE_ARGUMENTS
+
+: ${BUILD_CONFIG:=${SOURCE:-.}/build.conf} ${AR:=ar}
+readonly SHOW_TARGETS MAKE_TARGETS
+readonly BUILD_CONFIG SOURCE=$(dirname "$BUILD_CONFIG")
+readonly DIRECTORY_TARGET_FILE=.dir
+export CFLAGS CPPFLAGS LDFLAGS LDLIBS
+
+MAKEFILE_COMMANDS="\
+build_module_rules
+build_list_tests_target
+build_depend_rules
+"
+
+MODULE_COMMANDS="\
+build_module_variables
+build_module_tests
+build_module_generated_headers
+build_module_targets
+"
+
+build_read_config
+readonly MAKEFILE=$(build_makefile)
+
+# Either run make or show Makefile
+if [ "$MAKE_TARGETS" -o ! "$SHOW_TARGETS" ]; then
+  echo "$MAKEFILE" | ${MAKE:-make} -rf- "$@" \
+    $(if [ "$MAKE_TARGETS" ]; then
+      echo "$MAKEFILE" |
+      build_targets |
+      grep $(printf ' -e %s' $MAKE_TARGETS)
+    fi)
+else
+  for ARG in $SHOW_TARGETS; do
+    case "$ARG" in
+    Makefile) echo "$MAKEFILE";;
+    targets) echo "$MAKEFILE" | build_targets;;
+    *) >&2 echo "$0: Unknown show option \"$ARG\""; exit 1;;
+    esac
+  done
+fi
