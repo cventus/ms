@@ -112,15 +112,6 @@ build_module_variables() {
   printf '\n'
 }
 
-build_module_tests() {
-  printf 'TESTS.%s =' "$MODULE"
-  [ "$TESTS" ] && printf ' %s' $TESTS
-  printf '\n'
-
-  target_phony "$MODULE-test"
-  target_generic "test $MODULE-test" "\$(TESTS.$MODULE)"
-}
-
 build_module_generated_headers() {
   printf 'HEADERS.%s =' "$MODULE"
   [ "$HEADERS" ] && printf ' $(TARGET)/include/%s' $HEADERS
@@ -161,9 +152,8 @@ build_module_targets() {
 # Added first as-is to output makefile
 build_makefile_header() {
   target_generic all
-  target_generic test
   target_generic clean \; find "$TARGET" -type f -exec rm -- {} '\;'
-  target_phony all test clean
+  target_phony all clean
 
   echo
   echo "SOURCE = $SOURCE"
@@ -177,15 +167,6 @@ build_makefile_header() {
   echo
 }
 
-build_list_tests_target() {
-  target_generic list-tests
-    sh_cmd printf '"%s\\n"' $(for MODULE_DIR in $MODULES; do
-      printf ' $(TESTS.%s)' "$(basename $MODULE_DIR)"
-    done)
-  end_target
-  target_phony list-tests
-}
-
 build_module_rules() {
   echo
   # Produce all normal rules (each ``module.sh'' file evaluated in an
@@ -195,7 +176,7 @@ build_module_rules() {
     readonly MODULE_DIR MODULE=$(basename $MODULE_DIR)
     cd "$SOURCE/$MODULE_DIR"
     unset CFLAGS CPPFLAGS LDFLAGS LDLIBS
-    unset SOURCES OBJECTS HEADERS REQUIRE TESTS
+    unset SOURCES OBJECTS HEADERS REQUIRE
     if [ -f module.sh ]; then . ../$MODULE/module.sh; fi
     for C in $MODULE_COMMANDS; do $C; done
   ); done
@@ -308,13 +289,11 @@ export CFLAGS CPPFLAGS LDFLAGS LDLIBS
 
 MAKEFILE_COMMANDS="\
 build_module_rules
-build_list_tests_target
 build_depend_rules
 "
 
 MODULE_COMMANDS="\
 build_module_variables
-build_module_tests
 build_module_generated_headers
 build_module_targets
 "
