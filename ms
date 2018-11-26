@@ -229,7 +229,17 @@ build_makefile() {
 }
 
 build_targets() {
-  awk -v target_dir="$TARGET" '
+  awk -v target_dir="$TARGET" -v filter_string="$1" '
+  function is_target(target,    i) {
+    for (i = 1; i <= nfilters; i++) { if (target ~ filters[i]) return 1; }
+    return nfilters == 0
+  }
+
+  BEGIN {
+    nfilters = (length(filter_string) > 0 ?
+       split(filter_string, filters, /[[:space:]]{1,}/) : 0)
+  }
+
   { line = line substr($0, 1, length($0) - /\\$/); }
 
   /[^\\]$/ {
@@ -240,9 +250,9 @@ build_targets() {
         n = split(line, targets, /[ \t:]{1,}/)
         for (i = 1; i <= n; i++) {
 	  target = targets[i]
-          if (target ~ /^\$[({]TARGET[})]/ && target !~ /\$D/) {
+          if (target ~ /^\$[({]TARGET[})]/ && target !~ /\$D$/) {
 	    sub(/^\$[({]TARGET[})]/, target_dir, target)
-            print target
+            if (is_target(target)) print target
           }
         }
       }
@@ -251,14 +261,13 @@ build_targets() {
   }' | LC_ALL=C sort | uniq
 }
 
-MAKE_ARGUMENTS=''; SHOW_TARGETS=''; MAKE_TARGETS='';
+MAKE_ARGUMENTS=; SHOW_TARGETS=; MAKE_TARGETS=;
 i=1
 # Remove phony targets like "show:foo" or "make:bar" from "$@" and store in
 # SHOW_TARGETS and MAKE_TARGETS
 for ARG; do
   case "$ARG" in
   show:*) SHOW_TARGETS="$SHOW_TARGETS ${ARG#show:}";;
-  make:) MAKE_TARGETS="$MAKE_TARGETS .";;
   make:*) MAKE_TARGETS="$MAKE_TARGETS ${ARG#make:}";;
   *) MAKE_ARGUMENTS="$MAKE_ARGUMENTS \"\${$i}\"";;
   esac
@@ -297,9 +306,7 @@ readonly MAKEFILE=$(build_makefile)
 if [ "$MAKE_TARGETS" -o ! "$SHOW_TARGETS" ]; then
   echo "$MAKEFILE" | ${MAKE:-make} -rf- "$@" \
     $(if [ "$MAKE_TARGETS" ]; then
-      echo "$MAKEFILE" |
-      build_targets |
-      grep $(printf ' -e %s' $MAKE_TARGETS)
+      echo "$MAKEFILE" | build_targets "${MAKE_TARGETS# }"
     fi)
 else
   for ARG in $SHOW_TARGETS; do
