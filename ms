@@ -133,11 +133,7 @@ build_module_targets() {
 
   # $1 = library path
   set "\$(TARGET)/lib/lib$MODULE.a"
-
-  target_phony "$MODULE" "lib$MODULE.a"
-  target_generic "all $MODULE lib$MODULE.a" "$1"
-  echo
-
+  target_generic "all" "$1"
   target_generic "$1" "\$(OBJECTS.$MODULE)" '$(TARGET)/make$D'
     sh_cmd rm -f "$1" "\$(TARGET)/make/make$MODULE.a"
     ar_cmd -s "$1" "\$(OBJECTS.$MODULE)"
