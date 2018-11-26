@@ -81,10 +81,10 @@ build_read_config() {
     exit 1
   fi
 
-  readonly TARGET="${TARGET:=target}" SOURCE_INCLUDE="${SOURCE_INCLUDE:=include}"
+  readonly TARGET="${TARGET:=target}" INCLUDE="${INCLUDE:=include}"
   readonly MODULES DEPEND_FLAGS='-MMD -MP -MT $@ -MF' INCLUDE_FLAGS="\
 -I\$(TARGET)/include\
-${SOURCE_INCLUDE:+$(printf ' -I$(SOURCE)/%s' $SOURCE_INCLUDE)}"
+${INCLUDE:+$(printf ' -I$(SOURCE)/%s' $INCLUDE)}"
 }
 
 # Called in context of a module where CFLAGS, CPPFLAGS, LDFLAGS and LDLIBS are
@@ -92,18 +92,15 @@ ${SOURCE_INCLUDE:+$(printf ' -I$(SOURCE)/%s' $SOURCE_INCLUDE)}"
 build_module_variables() {
   printf 'CFLAGS.%s = %s\n' "$MODULE" "$CFLAGS"
   printf 'CPPFLAGS.%s = %s\n' "$MODULE" "$CPPFLAGS"
-
   printf 'LIBRARIES.%s =' "$MODULE"
   if [ "$REQUIRE" ]; then
     printf ' $(TARGET)/lib/lib%s.a' $REQUIRE
     printf ' $(LIBRARIES.%s)' $REQUIRE
   fi
   printf '\n'
-
   printf 'LDFLAGS.%s = %s' "$MODULE" "$LDFLAGS"
   if [ "$REQUIRE" ]; then printf ' $(LDFLAGS.%s)' $REQUIRE; fi
   printf '\n'
-
   printf 'LDLIBS.%s = %s' "$MODULE" "$LDLIBS"
   if [ "$REQUIRE" ]; then
     printf ' -l%s' $REQUIRE
