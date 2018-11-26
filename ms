@@ -193,10 +193,10 @@ build_makefile() {
     if (line !~ /^\t/) {
       sub(/#.*$/, "", line)
       gsub(/\$[{(][^{($:]*:[^({$})=]*=[^({$})]*[)}]/, "", line)
-      if (line ~ /^[^:=]{1,}=/) { // variable definition
+      if (line ~ /^[^:=]{1,}=/) { # variable definition
         n -= m
         for (i = 0; i < m; i++) { print buffer[n + i]; }
-      } else if (line ~ /[^:]{1,}:/) { // rule definition
+      } else if (line ~ /[^:]{1,}:/) { # rule definition
         m = split(line, targets, /[ \t:]{1,}/)
         for (i = 1; i <= m; i++) {
           target = targets[i]
