@@ -118,12 +118,11 @@ build_module_generated_headers() {
 
 globexists() { test -f "$1"; }
 
-# Create common module targets, such as lib$MODULE.a and binary
 build_module_targets() {
   # The default behavior when the module configuration defines neither sources
   # nor objects is to treat all source files in MODULE_DIR as source files,
   # which is convenient for small modules without even a module configuration.
-  if [ -z "$SOURCES$OBJECTS" ] && globexists *.c; then SOURCES=$(echo *.c); fi
+  if [ ! "$SOURCES$OBJECTS" ] && globexists *.c; then SOURCES=*.c; fi
   for S in $SOURCES; do define_object "$(basename $S .c).o" $S; done
 
   if [ "$OBJECTS" ]; then
