@@ -133,8 +133,7 @@ build_module_targets() {
 # Added first as-is to output makefile
 build_makefile_header() {
   target_generic all
-  target_generic clean \; find "$TARGET" -type f -exec rm -- {} '\;'
-  target_phony all clean
+  target_phony all
 
   echo
   echo "SOURCE = $SOURCE"
@@ -264,15 +263,17 @@ build_targets() {
   }' | LC_ALL=C sort | uniq
 }
 
-MAKE_ARGUMENTS=; SHOW_TARGETS=; MAKE_TARGETS=;
+MAKE_ARGUMENTS=; SHOW_TARGETS=; MAKE_TARGETS=; CLEAN_TARGETS=;
 i=1
 # Remove phony targets like "show:foo" or "make:bar" from "$@" and store in
-# SHOW_TARGETS and MAKE_TARGETS
+# SHOW_TARGETS, MAKE_TARGETS, and CLEAN_TARGETS
 for ARG; do
   case "$ARG" in
   show:*) SHOW_TARGETS="$SHOW_TARGETS ${ARG#show:}";;
   make:*) MAKE_TARGETS="$MAKE_TARGETS
 ${ARG#make:}";;
+  clean:*) CLEAN_TARGETS="$CLEAN_TARGETS
+${ARG#clean:}";;
   *) MAKE_ARGUMENTS="$MAKE_ARGUMENTS \"\${$i}\"";;
   esac
   i=$((i + 1))
@@ -287,7 +288,7 @@ done
 unset i ARG MAKE_ARGUMENTS
 
 : ${BUILD_CONFIG:=${SOURCE:-.}/build.conf} ${AR:=ar}
-readonly SHOW_TARGETS MAKE_TARGETS
+readonly SHOW_TARGETS MAKE_TARGETS CLEAN_TARGETS
 readonly BUILD_CONFIG SOURCE=$(dirname "$BUILD_CONFIG")
 readonly DIRECTORY_TARGET_FILE=.dir
 export CFLAGS CPPFLAGS LDFLAGS LDLIBS
@@ -304,10 +305,18 @@ build_module_targets
 "
 
 build_read_config
+
 readonly MAKEFILE=$(build_makefile)
 
 # Either run make or show Makefile
-if [ "$MAKE_TARGETS" -o ! "$SHOW_TARGETS" ]; then
+if [ "$CLEAN_TARGETS" ]; then
+  FILTERED_CLEAN=$(echo "$MAKEFILE" | build_targets "${CLEAN_TARGETS#
+}")
+  if [ "$FILTERED_CLEAN" ]; then
+    echo rm -f $FILTERED_CLEAN
+    rm -f $FILTERED_CLEAN
+  fi
+elif [ "$MAKE_TARGETS" -o ! "$SHOW_TARGETS" ]; then
   echo "$MAKEFILE" | ${MAKE:-make} -rf- "$@" \
     $(if [ "$MAKE_TARGETS" ]; then
       echo "$MAKEFILE" | build_targets "${MAKE_TARGETS#

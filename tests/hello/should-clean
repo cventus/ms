@@ -4,7 +4,7 @@ fixture hello
 
 build_or_fail target/bin/greet
 
-build_or_fail clean
+build_or_fail clean:
 
 directory_must_be_empty() {
   files=$(ls $1)
