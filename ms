@@ -229,15 +229,29 @@ build_makefile() {
 }
 
 build_targets() {
-  awk -v target_dir="$TARGET" -v filter_string="$1" '
+  awk -v target_dir="$TARGET" -v glob_string="$1" '
   function is_target(target,    i) {
-    for (i = 1; i <= nfilters; i++) { if (target ~ filters[i]) return 1; }
+    for (i = 1; i <= nfilters; i++) {
+      if (target ~ filters[i]) return 1;
+    }
     return nfilters == 0
   }
 
   BEGIN {
-    nfilters = (length(filter_string) > 0 ?
-       split(filter_string, filters, /[[:space:]]{1,}/) : 0)
+    nfilters = (length(glob_string) > 0 ?
+       split(glob_string, globs, /\n{1,}/) : 0)
+    for (i = 1; i <= nfilters; i++) {
+      glob = globs[i]
+      # Escape regex-characters
+      gsub(/[.$^*+?\[\]()]/, "\\\\&", glob)
+
+      # Translate glob wildcards into regex equivalents
+      gsub(/\\\?/, "[^/]", glob)
+      gsub(/\\\*\\\*/, ".*", glob)
+      gsub(/\\\*/, "[^/]*", glob)
+
+      filters[i] = glob
+    }
   }
 
   { line = line substr($0, 1, length($0) - /\\$/); }
@@ -268,7 +282,8 @@ i=1
 for ARG; do
   case "$ARG" in
   show:*) SHOW_TARGETS="$SHOW_TARGETS ${ARG#show:}";;
-  make:*) MAKE_TARGETS="$MAKE_TARGETS ${ARG#make:}";;
+  make:*) MAKE_TARGETS="$MAKE_TARGETS
+${ARG#make:}";;
   *) MAKE_ARGUMENTS="$MAKE_ARGUMENTS \"\${$i}\"";;
   esac
   i=$((i + 1))
@@ -306,7 +321,8 @@ readonly MAKEFILE=$(build_makefile)
 if [ "$MAKE_TARGETS" -o ! "$SHOW_TARGETS" ]; then
   echo "$MAKEFILE" | ${MAKE:-make} -rf- "$@" \
     $(if [ "$MAKE_TARGETS" ]; then
-      echo "$MAKEFILE" | build_targets "${MAKE_TARGETS# }"
+      echo "$MAKEFILE" | build_targets "${MAKE_TARGETS#
+}"
     fi)
 else
   for ARG in $SHOW_TARGETS; do
