@@ -22,12 +22,6 @@ cc_cmd() {
     "\$(CPPFLAGS) \$(CPPFLAGS.$MODULE) $INCLUDE_FLAGS $*"
 }
 
-# Output command to compile a single source file (add neccessary compilation
-# and preprocessor flags) and generate makefile rules at the specified path at
-# the same time.
-# Usage: ccmk_cmd <makefile rules path> <cc args>...
-ccmk_cmd() { cc_cmd "$DEPEND_FLAGS" "$@"; }
-
 # Output command to compile and link a single source file (add neccessary
 # linkage flags).
 # Usage: ld_cmd <cc args>...
@@ -39,14 +33,9 @@ ld_cmd() {
 
 # Output command to compile a source file into an object with optional extra
 # compiler flags (with default compilation flags) and generate makefile rules
-# in the same directory as the object file (with a ".d" appended to the
-# object's path name.
+# in the same directory as the object file (with a ".d" in place of ".o").
 # Usage: object_cmd <target object> <source file> [<cc args>...]
-object_cmd() {
-  object_cmd_obj_="$1"
-  shift 1
-  ccmk_cmd "${object_cmd_obj_%.o}.d" -o "$object_cmd_obj_" -c "$@"
-}
+object_cmd() { cc_cmd -MMD -MP -MT "'\$$1'" -MF "${1%.o}.d" -c -o "$@"; }
 
 # Output a makefile rule to compile an object for a module.
 # Usage: define_object <object> <source> [<cc flags> ...]
@@ -82,7 +71,7 @@ build_read_config() {
   fi
 
   readonly TARGET="${TARGET:=target}" INCLUDE="${INCLUDE:=include}"
-  readonly MODULES DEPEND_FLAGS='-MMD -MP -MT $@ -MF' INCLUDE_FLAGS="\
+  readonly MODULES INCLUDE_FLAGS="\
 -I\$(TARGET)/include\
 ${INCLUDE:+$(printf ' -I$(SOURCE)/%s' $INCLUDE)}"
 }
