@@ -42,10 +42,11 @@ object_cmd() { cc_cmd -MMD -MP -MT "'\$$1'" -MF "${1%.o}.d" -c -o "$@"; }
 define_object() {
   OBJECTS="$OBJECTS $1"
   define_object_obj_="\$(TARGET)/obj/$MODULE/$1"
+  define_object_make_="\$(TARGET)/obj/$MODULE/${1%.o}.d"
   define_object_src_="\$(SOURCE)/$MODULE_DIR/$2"
   shift 2
 
-  target_cc "$define_object_obj_" "$define_object_src_"
+  target_cc "$define_object_obj_ $define_object_make_" "$define_object_src_"
     object_cmd "$define_object_obj_" "$define_object_src_" "$@"
   end_target
 }
@@ -115,14 +116,18 @@ build_module_targets() {
     echo
   fi
 
-  # $1 = library path
-  set "\$(TARGET)/lib/lib$MODULE.a"
-  target_generic "all" "$1"
-  target_generic "$1" "\$(OBJECTS.$MODULE)" '$(TARGET)/make$D'
-    sh_cmd rm -f "$1" "\$(TARGET)/make/make$MODULE.a"
-    ar_cmd -s "$1" "\$(OBJECTS.$MODULE)"
-    ar_cmd "\$(TARGET)/make/make$MODULE.a" "\$(OBJECTS.$MODULE:.o=.d)"
+  # $1 = library path, $2 = makefile rules
+  set "\$(TARGET)/lib/lib$MODULE.a" "\$(TARGET)/make/make$MODULE.a"
+
+  target_generic "$2" "\$(OBJECTS.$MODULE:.o=.d)"
+    sh_cmd rm -f "$2"
+    ar_cmd "$2" "\$(OBJECTS.$MODULE:.o=.d)"
   end_target
+  target_generic "$1" "$2" "\$(OBJECTS.$MODULE)"
+    sh_cmd rm -f "$1"
+    ar_cmd -s "$1" "\$(OBJECTS.$MODULE)"
+  end_target
+  target_generic "all" "$1"
 }
 
 # Added first as-is to output makefile
