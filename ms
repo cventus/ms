@@ -51,12 +51,7 @@ define_object() {
 }
 
 define_binary() {
-  target_generic "all $MODULE" "\$(TARGET)/bin/${1:-$MODULE}"
-
-  if [ "$1" -a "$1" != "$MODULE" ]; then
-    target_generic "$1" "\$(TARGET)/bin/$1"
-    target_phony "$1"
-  fi
+  target_generic "all" "\$(TARGET)/bin/${1:-$MODULE}"
 
   target_ld "\$(TARGET)/bin/${1:-$MODULE}" "\$(TARGET)/lib/lib$MODULE.a"
     ld_cmd "\$(TARGET)/lib/lib$MODULE.a" -o "\$(TARGET)/bin/${1:-$MODULE}"
