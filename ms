@@ -324,8 +324,7 @@ elif [ "$MAKE_TARGETS" -o ! "$SHOW_TARGETS" ]; then
 else
   for ARG in $SHOW_TARGETS; do
     case "$ARG" in
-    Makefile) echo "$MAKEFILE";;
-    targets) echo "$MAKEFILE" | build_targets;;
+    [Mm]akefile) echo "$MAKEFILE";;
     *) >&2 echo "$0: Unknown show option \"$ARG\""; exit 1;;
     esac
   done

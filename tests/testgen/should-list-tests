@@ -1,5 +1,5 @@
 fixture testgen
 
-strings_must_equal "$(build_or_fail -s show:targets | grep 'test.*bin')" "\
+strings_must_equal "$(build_or_fail -s target:test/*/bin)" "\
 target/test/calc/bin/fails
 target/test/calc/bin/passes"
