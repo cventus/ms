@@ -219,19 +219,18 @@ build_makefile() {
 build_targets() {
   awk -v target_dir="$TARGET" -v glob_string="$1" '
   function is_target(target,    i) {
-    for (i = 1; i <= nfilters; i++) {
+    for (i = 2; i <= nfilters; i++) {
       if (target ~ filters[i]) return 1;
     }
-    return nfilters == 0
+    return nfilters < 2
   }
 
   BEGIN {
-    nfilters = (length(glob_string) > 0 ?
-       split(glob_string, globs, /\n{1,}/) : 0)
-    for (i = 1; i <= nfilters; i++) {
+    nfilters = length(glob_string) > 0 ? split(glob_string, globs, /\n{1,}/) : 0
+    for (i = 2; i <= nfilters; i++) {
       glob = globs[i]
       # Escape regex-characters
-      gsub(/[.$^*+?\[\]()]/, "\\\\&", glob)
+      gsub(/[]().$^*+?[]/, "\\\\&", glob)
 
       # Translate glob wildcards into regex equivalents
       gsub(/\\\?/, "[^/]", glob)
@@ -263,17 +262,18 @@ build_targets() {
   }' | LC_ALL=C sort | uniq
 }
 
-MAKE_ARGUMENTS=; SHOW_TARGETS=; MAKE_TARGETS=; CLEAN_TARGETS=;
+NEWLINE="
+"
+MAKE_ARGUMENTS=; SHOW_TARGETS=; TARGET_TARGETS=; MAKE_TARGETS=; CLEAN_TARGETS=;
 i=1
-# Remove phony targets like "show:foo" or "make:bar" from "$@" and store in
-# SHOW_TARGETS, MAKE_TARGETS, and CLEAN_TARGETS
+# Remove phony targets like "clean:foo" or "make:bar" from "$@" and store in
+# *_TARGETS
 for ARG; do
   case "$ARG" in
-  show:*) SHOW_TARGETS="$SHOW_TARGETS ${ARG#show:}";;
-  make:*) MAKE_TARGETS="$MAKE_TARGETS
-${ARG#make:}";;
-  clean:*) CLEAN_TARGETS="$CLEAN_TARGETS
-${ARG#clean:}";;
+  show:*) SHOW_TARGETS="$SHOW_TARGETS${NEWLINE}${ARG#show:}";;
+  target:*) TARGET_TARGETS="$TARGET_TARGETS${NEWLINE}${ARG#target:}";;
+  make:*) MAKE_TARGETS="$MAKE_TARGETS${NEWLINE}${ARG#make:}";;
+  clean:*) CLEAN_TARGETS="$CLEAN_TARGETS${NEWLINE}${ARG#clean:}";;
   *) MAKE_ARGUMENTS="$MAKE_ARGUMENTS \"\${$i}\"";;
   esac
   i=$((i + 1))
@@ -285,10 +285,10 @@ for ARG; do
     export "$ARG";;
   esac
 done
-unset i ARG MAKE_ARGUMENTS
+unset i NEWLINE ARG MAKE_ARGUMENTS
 
 : ${BUILD_CONFIG:=${SOURCE:-.}/build.conf} ${AR:=ar}
-readonly SHOW_TARGETS MAKE_TARGETS CLEAN_TARGETS
+readonly SHOW_TARGETS TARGET_TARGETS MAKE_TARGETS CLEAN_TARGETS
 readonly BUILD_CONFIG SOURCE=$(dirname "$BUILD_CONFIG")
 readonly DIRECTORY_TARGET_FILE=.dir
 export CFLAGS CPPFLAGS LDFLAGS LDLIBS
@@ -305,13 +305,13 @@ build_module_targets
 "
 
 build_read_config
-
 readonly MAKEFILE=$(build_makefile)
 
 # Either run make or show Makefile
-if [ "$CLEAN_TARGETS" ]; then
-  FILTERED_CLEAN=$(echo "$MAKEFILE" | build_targets "${CLEAN_TARGETS#
-}")
+if [ "$TARGET_TARGETS" ]; then
+  echo "$MAKEFILE" | build_targets "$TARGET_TARGETS"
+elif [ "$CLEAN_TARGETS" ]; then
+  FILTERED_CLEAN=$(echo "$MAKEFILE" | build_targets "$CLEAN_TARGETS")
   if [ "$FILTERED_CLEAN" ]; then
     echo rm -f $FILTERED_CLEAN
     rm -f $FILTERED_CLEAN
@@ -319,8 +319,7 @@ if [ "$CLEAN_TARGETS" ]; then
 elif [ "$MAKE_TARGETS" -o ! "$SHOW_TARGETS" ]; then
   echo "$MAKEFILE" | ${MAKE:-make} -rf- "$@" \
     $(if [ "$MAKE_TARGETS" ]; then
-      echo "$MAKEFILE" | build_targets "${MAKE_TARGETS#
-}"
+      echo "$MAKEFILE" | build_targets "$MAKE_TARGETS"
     fi)
 else
   for ARG in $SHOW_TARGETS; do
