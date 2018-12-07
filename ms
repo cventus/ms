@@ -157,7 +157,12 @@ build_module_rules() {
     cd "$SOURCE/$MODULE_DIR"
     unset CFLAGS CPPFLAGS LDFLAGS LDLIBS
     unset SOURCES OBJECTS HEADERS REQUIRE
-    if [ -f module.sh ]; then . ../$MODULE/module.sh; fi
+    if [ -f module.sh ]; then
+      if ! . ./module.sh; then
+        >&2 echo "$(basename $0): in $SOURCE/$MODULE_DIR/module.sh"
+	exit 1
+      fi
+    fi
     for C in $MODULE_COMMANDS; do $C; done
   ); done
 }
