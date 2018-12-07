@@ -5,7 +5,6 @@ set -ef
 target_generic() { printf '%s: ' "$1"; shift; echo "$*"; }
 target_cc() { target_generic "$@" "\$(HEADERS.$MODULE)"; }
 target_ld() { target_generic "$@" "\$(LIBRARIES.$MODULE)"; }
-end_target() { printf '\n'; }
 
 # Functions for adding rule commands
 sh_cmd() { printf '\t%s\n' "$*"; }
@@ -45,7 +44,6 @@ define_object() {
 
   target_cc "$define_object_obj_ $define_object_make_" "$define_object_src_"
     object_cmd "$define_object_obj_" "$define_object_src_" "$@"
-  end_target
 }
 
 define_binary() {
@@ -53,7 +51,6 @@ define_binary() {
 
   target_ld "\$(TARGET)/bin/${1:-$MODULE}" "\$(TARGET)/lib/lib$MODULE.a"
     ld_cmd "\$(TARGET)/lib/lib$MODULE.a" -o "\$(TARGET)/bin/${1:-$MODULE}"
-  end_target
 }
 
 build_read_config() {
@@ -125,11 +122,11 @@ build_module_targets() {
   target_generic "$2" "\$(OBJECTS.$MODULE:.o=.d)"
     sh_cmd rm -f "$2"
     ar_cmd "$2" "\$(OBJECTS.$MODULE:.o=.d)"
-  end_target
+
   target_generic "$1" "$2" "\$(OBJECTS.$MODULE)"
     sh_cmd rm -f "$1"
     ar_cmd -s "$1" "\$(OBJECTS.$MODULE)"
-  end_target
+
   target_generic "all" "$1"
 }
 
@@ -151,7 +148,6 @@ build_makefile_header() {
 }
 
 build_module_rules() {
-  echo
   # Produce all normal rules (each ``module.sh'' file evaluated in an
   # independent sub-shell)
   for MODULE_DIR in $MODULES; do (
@@ -195,6 +191,12 @@ build_makefile() {
         n -= m
         for (i = 0; i < m; i++) { print buffer[n + i]; }
       } else if (line ~ /[^:]{1,}:/) { # rule definition
+        # newline before rule
+        for (i = 0; i < m; i++) { buffer[n - i] = buffer[n - i - 1]; }
+        buffer[n - i] = ""
+        n++
+
+	# directory targets
         m = split(line, targets, /[ \t:]{1,}/)
         for (i = 1; i <= m; i++) {
           target = targets[i]

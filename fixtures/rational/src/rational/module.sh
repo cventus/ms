@@ -12,7 +12,6 @@ specialize_header() {
   target_generic "\$(TARGET)/src/$MODULE/${3}rat.h" \
     "\$(SOURCE)/$MODULE_DIR/rat.h"
   cc_cmd -E -C $(cpp_macros "$@") "\$(SOURCE)/$MODULE_DIR/rat.h" '>"$@"'
-  end_target
 }
 
 # List integer types on fd 3
@@ -42,4 +41,3 @@ sh_cmd \
   "sed '/\\(begin\\|end\\) public rat.h/d'" \| \
   "cat \$(SOURCE)/$MODULE_DIR/prolog.h - \$(SOURCE)/$MODULE_DIR/epilog.h" \
   '>$@'
-end_target

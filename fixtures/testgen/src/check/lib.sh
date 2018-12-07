@@ -26,17 +26,14 @@ addcheck()
   # Rule to compile test functions
   target_cc "$CHECK_OBJECT" "$CHECK_SOURCE"
     object_cmd $CHECK_OBJECT "$CHECK_SOURCE" "$@"
-  end_target
 
   # Rule for generated source and function stubs
   target_generic $CHECK_GENSRC $CHECK_OBJECT $CHECK_SCRIPT
     sh_cmd '$(NM)' -PA $CHECK_OBJECT \| awk -f $CHECK_SCRIPT '>$@'
-  end_target
 
   # Rule to build generated source
   target_cc $CHECK_GENOBJ $CHECK_GENSRC
     object_cmd $CHECK_GENOBJ $CHECK_GENSRC
-  end_target
 
   # Rule to link the test executable
   target_ld "$CHECK_BINARY" \
@@ -54,5 +51,4 @@ addcheck()
       "\"$CHECK_GENOBJ"\" \
       -lcheck \
       -l$MODULE
-  end_target
 }
