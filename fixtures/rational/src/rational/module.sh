@@ -9,7 +9,8 @@ specialize_object() {
 }
 
 specialize_header() {
-  target_source "${3}rat.h" "\$(SOURCE)/$MODULE_DIR/rat.h"
+  target_generic "\$(TARGET)/src/$MODULE/${3}rat.h" \
+    "\$(SOURCE)/$MODULE_DIR/rat.h"
   cc_cmd -E -C $(cpp_macros "$@") "\$(SOURCE)/$MODULE_DIR/rat.h" '>"$@"'
   end_target
 }
@@ -31,7 +32,7 @@ done
 # Close fd 3
 exec 3<&-
 
-target_include rational.h \
+target_generic "\$(TARGET)/include/rational.h" \
   $(printf " \$(TARGET)/src/$MODULE/%srat.h" "" l ll)
 
 # Recipe for composing header from parts

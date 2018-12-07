@@ -3,8 +3,6 @@ set -ef
 
 # Short-hand functions for defining rules
 target_generic() { printf '%s: ' "$1"; shift; echo "$*"; }
-target_source() { target_generic "\$(TARGET)/src/$MODULE/$@"; }
-target_include() { target_generic "\$(TARGET)/include/$@"; }
 target_cc() { target_generic "$@" "\$(HEADERS.$MODULE)"; }
 target_ld() { target_generic "$@" "\$(LIBRARIES.$MODULE)"; }
 end_target() { printf '\n'; }
