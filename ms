@@ -1,5 +1,5 @@
 #!/bin/sh
-set -e
+set -ef
 
 # Short-hand functions for defining rules
 target_generic() { printf '%s: ' "$1"; shift; echo "$*"; }
@@ -59,11 +59,13 @@ define_binary() {
 }
 
 build_read_config() {
+  set +f
   if [ -f "$BUILD_CONFIG" ]; then . "$BUILD_CONFIG"; fi
   if [ -z "$MODULES" ]; then
     echo "MODULES not defined in environment or $BUILD_CONFIG" >&2
     exit 1
   fi
+  set -f
 
   readonly TARGET="${TARGET:=target}" INCLUDE="${INCLUDE:=include}"
   readonly MODULES INCLUDE_FLAGS="\
@@ -74,6 +76,7 @@ ${INCLUDE:+$(printf ' -I$(SOURCE)/%s' $INCLUDE)}"
 # Called in context of a module where CFLAGS, CPPFLAGS, LDFLAGS and LDLIBS are
 # module specific
 build_module_variables() {
+  set -f
   printf 'CFLAGS.%s = %s\n' "$MODULE" "$CFLAGS"
   printf 'CPPFLAGS.%s = %s\n' "$MODULE" "$CPPFLAGS"
   printf 'LIBRARIES.%s =' "$MODULE"
@@ -94,6 +97,7 @@ build_module_variables() {
 }
 
 build_module_generated_headers() {
+  set -f
   printf 'HEADERS.%s =' "$MODULE"
   [ "$HEADERS" ] && printf ' $(TARGET)/include/%s' $HEADERS
   [ "$REQUIRE" ] && printf ' $(HEADERS.%s)' $REQUIRE
@@ -106,8 +110,10 @@ build_module_targets() {
   # The default behavior when the module configuration defines neither sources
   # nor objects is to treat all source files in MODULE_DIR as source files,
   # which is convenient for small modules without even a module configuration.
-  if [ ! "$SOURCES$OBJECTS" ] && globexists *.c; then SOURCES=*.c; fi
-  for S in $SOURCES; do define_object "$(basename $S .c).o" $S; done
+  set +f
+  if [ ! "$SOURCES$OBJECTS" ] && globexists *.c; then SOURCES=$(echo *.c); fi
+  set -f
+  for S in $SOURCES; do define_object "$(basename "$S" .c).o" "$S"; done
 
   if [ "$OBJECTS" ]; then
     printf 'OBJECTS.%s =' "$MODULE"
@@ -157,10 +163,12 @@ build_module_rules() {
     unset CFLAGS CPPFLAGS LDFLAGS LDLIBS
     unset SOURCES OBJECTS HEADERS REQUIRE
     if [ -f module.sh ]; then
+      set +f
       if ! . ./module.sh; then
         >&2 echo "$(basename $0): in $SOURCE/$MODULE_DIR/module.sh"
 	exit 1
       fi
+      set -f
     fi
     for C in $MODULE_COMMANDS; do $C; done
   ); done
