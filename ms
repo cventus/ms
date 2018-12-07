@@ -3,7 +3,6 @@ set -e
 
 # Short-hand functions for defining rules
 target_generic() { printf '%s: ' "$1"; shift; echo "$*"; }
-target_phony() { target_generic .PHONY "$*"; }
 target_source() { target_generic "\$(TARGET)/src/$MODULE/$@"; }
 target_include() { target_generic "\$(TARGET)/include/$@"; }
 target_cc() { target_generic "$@" "\$(HEADERS.$MODULE)"; }
@@ -133,7 +132,7 @@ build_module_targets() {
 # Added first as-is to output makefile
 build_makefile_header() {
   target_generic all
-  target_phony all
+  target_generic .PHONY all
 
   echo
   echo "SOURCE = $SOURCE"
