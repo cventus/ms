@@ -24,10 +24,12 @@ LD() {
 # Usage: object_cmd <target object> <source file> [<cc args>...]
 CC_object() { CC -MMD -MP -MT "'\$$1'" -MF "${1%.o}.d" -c -o "$@"; }
 
+define_source() { SOURCES="$SOURCES${SOURCES:+ }$*"; }
+
 # Output a makefile rule to compile an object for a module.
 # Usage: define_object <object> <source> [<cc flags> ...]
 define_object() {
-  OBJECTS="$OBJECTS $1"
+  OBJECTS="$OBJECTS${OBJECTS:+ }$1"
   define_object_obj_="\$(TARGET)/obj/$MODULE/$1"
   define_object_make_="\$(TARGET)/obj/$MODULE/${1%.o}.d"
   define_object_src_="\$(SOURCE)/$MODULE_DIR/$2"
@@ -120,7 +122,7 @@ build_module_rules() {
   # Produce all normal rules (each ``module.sh'' file evaluated in an
   # independent sub-shell)
   for MODULE_DIR in $MODULES; do (
-    require() { REQUIRE="$REQUIRE $*"; }
+    require() { REQUIRE="$REQUIRE${REQUIRE:+ }$*"; }
     readonly MODULE_DIR MODULE=$(basename $MODULE_DIR)
     cd "$SOURCE/$MODULE_DIR"
     unset CFLAGS CPPFLAGS LDFLAGS LDLIBS
