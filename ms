@@ -1,26 +1,17 @@
 #!/bin/sh
 set -ef
 
-# Short-hand functions for defining rules
+# Short-hand functions for defining targets and rules
 new_target() { printf '%s: ' "$1"; shift; echo "$*"; }
 cc_target() { new_target "$@" "\$(HEADERS.$MODULE)"; }
 ld_target() { new_target "$@" "\$(LIBRARIES.$MODULE)"; }
 
-# Functions for adding rule commands
 sh_cmd() { printf '\t%s\n' "$*"; }
 ar_cmd() { sh_cmd '$(AR)' -rc "$*"; }
-
-# Output command to compile a single source file (add neccessary compilation
-# and preprocessor flags).
-# Usage: cc_cmd <cc args>...
 cc_cmd() {
   sh_cmd "\$(CC) \$(CFLAGS) \$(CFLAGS.$MODULE)" \
     "\$(CPPFLAGS) \$(CPPFLAGS.$MODULE) $INCLUDE_FLAGS $*"
 }
-
-# Output command to compile and link a single source file (add neccessary
-# linkage flags).
-# Usage: ld_cmd <cc args>...
 ld_cmd() {
   sh_cmd "\$(CC) \$(CFLAGS) \$(CFLAGS.$MODULE)" \
     "-L\$(TARGET)/lib \$(LDFLAGS) \$(LDFLAGS.$MODULE)" \
@@ -48,28 +39,10 @@ define_object() {
 
 define_binary() {
   new_target "all" "\$(TARGET)/bin/${1:-$MODULE}"
-
   ld_target "\$(TARGET)/bin/${1:-$MODULE}" "\$(TARGET)/lib/lib$MODULE.a"
     ld_cmd "\$(TARGET)/lib/lib$MODULE.a" -o "\$(TARGET)/bin/${1:-$MODULE}"
 }
 
-build_read_config() {
-  set +f
-  if [ -f "$BUILD_CONFIG" ]; then . "$BUILD_CONFIG"; fi
-  if [ -z "$MODULES" ]; then
-    echo "MODULES not defined in environment or $BUILD_CONFIG" >&2
-    exit 1
-  fi
-  set -f
-
-  readonly TARGET="${TARGET:=target}" INCLUDE="${INCLUDE:=include}"
-  readonly MODULES INCLUDE_FLAGS="\
--I\$(TARGET)/include\
-${INCLUDE:+$(printf ' -I$(SOURCE)/%s' $INCLUDE)}"
-}
-
-# Called in context of a module where CFLAGS, CPPFLAGS, LDFLAGS and LDLIBS are
-# module specific
 build_module_variables() {
   set -f
   printf 'CFLAGS.%s = %s\n' "$MODULE" "$CFLAGS"
@@ -316,7 +289,20 @@ build_module_generated_headers
 build_module_targets
 "
 
-build_read_config
+# read config
+set +f
+if [ -f "$BUILD_CONFIG" ]; then . "$BUILD_CONFIG"; fi
+if [ -z "$MODULES" ]; then
+  echo "MODULES not defined in environment or $BUILD_CONFIG" >&2
+  exit 1
+fi
+set -f
+
+readonly TARGET="${TARGET:=target}" INCLUDE="${INCLUDE:=include}"
+readonly MODULES INCLUDE_FLAGS="\
+-I\$(TARGET)/include\
+${INCLUDE:+$(printf ' -I$(SOURCE)/%s' $INCLUDE)}"
+
 readonly MAKEFILE=$(build_makefile)
 
 # Either run make or show Makefile
