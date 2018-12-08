@@ -46,7 +46,6 @@ define_binary() {
 }
 
 build_module_variables() {
-  set -f
   printf 'CFLAGS.%s = %s\n' "$MODULE" "$CFLAGS"
   printf 'CPPFLAGS.%s = %s\n' "$MODULE" "$CPPFLAGS"
   printf 'LIBRARIES.%s =' "$MODULE"
@@ -67,22 +66,17 @@ build_module_variables() {
 }
 
 build_module_generated_headers() {
-  set -f
   printf 'HEADERS.%s =' "$MODULE"
   [ "$HEADERS" ] && printf ' $(TARGET)/include/%s' $HEADERS
   [ "$REQUIRE" ] && printf ' $(HEADERS.%s)' $REQUIRE
   printf '\n'
 }
 
-globexists() { test -f "$1"; }
-
 build_module_targets() {
   # The default behavior when the module configuration defines neither sources
   # nor objects is to treat all source files in MODULE_DIR as source files,
   # which is convenient for small modules without a module configuration.
-  set +f
-  if [ ! "$SOURCES$OBJECTS" ] && globexists *.c; then SOURCES=$(echo *.c); fi
-  set -f
+  if [ ! "$SOURCES$OBJECTS" ]; then SOURCES=$(ls | grep \\.c\$); fi
   for S in $SOURCES; do define_object "$(basename "$S" .c).o" "$S"; done
 
   if [ "$OBJECTS" ]; then
