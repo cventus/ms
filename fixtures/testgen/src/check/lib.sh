@@ -24,19 +24,19 @@ addcheck()
   CHECK_SCRIPT="\$(SOURCE)/src/check/checkgen.awk"
 
   # Rule to compile test functions
-  target_cc "$CHECK_OBJECT" "$CHECK_SOURCE"
+  cc_target "$CHECK_OBJECT" "$CHECK_SOURCE"
     object_cmd $CHECK_OBJECT "$CHECK_SOURCE" "$@"
 
   # Rule for generated source and function stubs
-  target_generic $CHECK_GENSRC $CHECK_OBJECT $CHECK_SCRIPT
+  new_target $CHECK_GENSRC $CHECK_OBJECT $CHECK_SCRIPT
     sh_cmd '$(NM)' -PA $CHECK_OBJECT \| awk -f $CHECK_SCRIPT '>$@'
 
   # Rule to build generated source
-  target_cc $CHECK_GENOBJ $CHECK_GENSRC
+  cc_target $CHECK_GENOBJ $CHECK_GENSRC
     object_cmd $CHECK_GENOBJ $CHECK_GENSRC
 
   # Rule to link the test executable
-  target_ld "$CHECK_BINARY" \
+  ld_target "$CHECK_BINARY" \
     "$CHECK_OBJECT" "$CHECK_GENOBJ " \
     "\$(TARGET)/lib/lib$MODULE.a" "\$(TARGET)/lib/libcheck.a" \
     "$CHECK_DEPDIR\$D"

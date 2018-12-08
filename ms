@@ -2,9 +2,9 @@
 set -ef
 
 # Short-hand functions for defining rules
-target_generic() { printf '%s: ' "$1"; shift; echo "$*"; }
-target_cc() { target_generic "$@" "\$(HEADERS.$MODULE)"; }
-target_ld() { target_generic "$@" "\$(LIBRARIES.$MODULE)"; }
+new_target() { printf '%s: ' "$1"; shift; echo "$*"; }
+cc_target() { new_target "$@" "\$(HEADERS.$MODULE)"; }
+ld_target() { new_target "$@" "\$(LIBRARIES.$MODULE)"; }
 
 # Functions for adding rule commands
 sh_cmd() { printf '\t%s\n' "$*"; }
@@ -42,14 +42,14 @@ define_object() {
   define_object_src_="\$(SOURCE)/$MODULE_DIR/$2"
   shift 2
 
-  target_cc "$define_object_obj_ $define_object_make_" "$define_object_src_"
+  cc_target "$define_object_obj_ $define_object_make_" "$define_object_src_"
     object_cmd "$define_object_obj_" "$define_object_src_" "$@"
 }
 
 define_binary() {
-  target_generic "all" "\$(TARGET)/bin/${1:-$MODULE}"
+  new_target "all" "\$(TARGET)/bin/${1:-$MODULE}"
 
-  target_ld "\$(TARGET)/bin/${1:-$MODULE}" "\$(TARGET)/lib/lib$MODULE.a"
+  ld_target "\$(TARGET)/bin/${1:-$MODULE}" "\$(TARGET)/lib/lib$MODULE.a"
     ld_cmd "\$(TARGET)/lib/lib$MODULE.a" -o "\$(TARGET)/bin/${1:-$MODULE}"
 }
 
@@ -119,21 +119,21 @@ build_module_targets() {
   # $1 = library path, $2 = makefile rules
   set "\$(TARGET)/lib/lib$MODULE.a" "\$(TARGET)/make/make$MODULE.a"
 
-  target_generic "$2" "\$(OBJECTS.$MODULE:.o=.d)"
+  new_target "$2" "\$(OBJECTS.$MODULE:.o=.d)"
     sh_cmd rm -f "$2"
     ar_cmd "$2" "\$(OBJECTS.$MODULE:.o=.d)"
 
-  target_generic "$1" "$2" "\$(OBJECTS.$MODULE)"
+  new_target "$1" "$2" "\$(OBJECTS.$MODULE)"
     sh_cmd rm -f "$1"
     ar_cmd -s "$1" "\$(OBJECTS.$MODULE)"
 
-  target_generic "all" "$1"
+  new_target "all" "$1"
 }
 
 # Added first as-is to output makefile
 build_makefile_header() {
-  target_generic all
-  target_generic .PHONY all
+  new_target all
+  new_target .PHONY all
 
   echo
   echo "SOURCE = $SOURCE"
