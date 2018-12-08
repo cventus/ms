@@ -1,10 +1,12 @@
 # Make NM available from environment by default
 export NM=${NM:-nm}
 
+NM() { SH '$(NM)' "$@"; }
+
 # Define a test with an auto-generated main function which
 # calls all functions named "test_*"
-# addcheck [<name>] <source>.c [CC options]
-addcheck()
+# define_check [<name>] <source>.c [CC options]
+define_check()
 {
   CHECK_SOURCE="\$(SOURCE)/$MODULE_DIR/$1"
   CHECK_NAME=$(basename "$CHECK_SOURCE" .c)
@@ -25,15 +27,15 @@ addcheck()
 
   # Rule to compile test functions
   cc_target "$CHECK_OBJECT" "$CHECK_SOURCE"
-    object_cmd $CHECK_OBJECT "$CHECK_SOURCE" "$@"
+    CC_object $CHECK_OBJECT "$CHECK_SOURCE" "$@"
 
   # Rule for generated source and function stubs
   new_target $CHECK_GENSRC $CHECK_OBJECT $CHECK_SCRIPT
-    sh_cmd '$(NM)' -PA $CHECK_OBJECT \| awk -f $CHECK_SCRIPT '>$@'
+    NM -PA $CHECK_OBJECT \| awk -f $CHECK_SCRIPT '>$@'
 
   # Rule to build generated source
   cc_target $CHECK_GENOBJ $CHECK_GENSRC
-    object_cmd $CHECK_GENOBJ $CHECK_GENSRC
+    CC_object $CHECK_GENOBJ $CHECK_GENSRC
 
   # Rule to link the test executable
   ld_target "$CHECK_BINARY" \
@@ -42,10 +44,10 @@ addcheck()
     "$CHECK_DEPDIR\$D"
 
     # Add source dependencies to archive
-    ar_cmd "$CHECK_DEPEND" "${CHECK_OBJECT%.o}.d" "${CHECK_GENOBJ%.o}.d"
+    AR "$CHECK_DEPEND" "${CHECK_OBJECT%.o}.d" "${CHECK_GENOBJ%.o}.d"
 
     # Link test executable
-    ld_cmd \
+    LD \
       -o "\"$CHECK_BINARY"\" \
       "\"$CHECK_OBJECT"\" \
       "\"$CHECK_GENOBJ"\" \

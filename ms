@@ -6,14 +6,14 @@ new_target() { printf '%s: ' "$1"; shift; echo "$*"; }
 cc_target() { new_target "$@" "\$(HEADERS.$MODULE)"; }
 ld_target() { new_target "$@" "\$(LIBRARIES.$MODULE)"; }
 
-sh_cmd() { printf '\t%s\n' "$*"; }
-ar_cmd() { sh_cmd '$(AR)' -rc "$*"; }
-cc_cmd() {
-  sh_cmd "\$(CC) \$(CFLAGS) \$(CFLAGS.$MODULE)" \
+SH() { printf '\t%s\n' "$*"; }
+AR() { SH '$(AR)' -rc "$*"; }
+CC() {
+  SH "\$(CC) \$(CFLAGS) \$(CFLAGS.$MODULE)" \
     "\$(CPPFLAGS) \$(CPPFLAGS.$MODULE) $INCLUDE_FLAGS $*"
 }
-ld_cmd() {
-  sh_cmd "\$(CC) \$(CFLAGS) \$(CFLAGS.$MODULE)" \
+LD() {
+  SH "\$(CC) \$(CFLAGS) \$(CFLAGS.$MODULE)" \
     "-L\$(TARGET)/lib \$(LDFLAGS) \$(LDFLAGS.$MODULE)" \
     "$* \$(LDLIBS.$MODULE) \$(LDLIBS)"
 }
@@ -22,7 +22,7 @@ ld_cmd() {
 # compiler flags (with default compilation flags) and generate makefile rules
 # in the same directory as the object file (with a ".d" in place of ".o").
 # Usage: object_cmd <target object> <source file> [<cc args>...]
-object_cmd() { cc_cmd -MMD -MP -MT "'\$$1'" -MF "${1%.o}.d" -c -o "$@"; }
+CC_object() { CC -MMD -MP -MT "'\$$1'" -MF "${1%.o}.d" -c -o "$@"; }
 
 # Output a makefile rule to compile an object for a module.
 # Usage: define_object <object> <source> [<cc flags> ...]
@@ -34,13 +34,15 @@ define_object() {
   shift 2
 
   cc_target "$define_object_obj_ $define_object_make_" "$define_object_src_"
-    object_cmd "$define_object_obj_" "$define_object_src_" "$@"
+    CC_object "$define_object_obj_" "$define_object_src_" "$@"
 }
 
+# Output a makefile rule to compile a module as a binary.
+# Usage: define_binary <name>
 define_binary() {
   new_target "all" "\$(TARGET)/bin/${1:-$MODULE}"
   ld_target "\$(TARGET)/bin/${1:-$MODULE}" "\$(TARGET)/lib/lib$MODULE.a"
-    ld_cmd "\$(TARGET)/lib/lib$MODULE.a" -o "\$(TARGET)/bin/${1:-$MODULE}"
+    LD "\$(TARGET)/lib/lib$MODULE.a" -o "\$(TARGET)/bin/${1:-$MODULE}"
 }
 
 build_module_variables() {
@@ -77,7 +79,7 @@ globexists() { test -f "$1"; }
 build_module_targets() {
   # The default behavior when the module configuration defines neither sources
   # nor objects is to treat all source files in MODULE_DIR as source files,
-  # which is convenient for small modules without even a module configuration.
+  # which is convenient for small modules without a module configuration.
   set +f
   if [ ! "$SOURCES$OBJECTS" ] && globexists *.c; then SOURCES=$(echo *.c); fi
   set -f
@@ -93,12 +95,12 @@ build_module_targets() {
   set "\$(TARGET)/lib/lib$MODULE.a" "\$(TARGET)/make/make$MODULE.a"
 
   new_target "$2" "\$(OBJECTS.$MODULE:.o=.d)"
-    sh_cmd rm -f "$2"
-    ar_cmd "$2" "\$(OBJECTS.$MODULE:.o=.d)"
+    SH rm -f "$2"
+    AR "$2" "\$(OBJECTS.$MODULE:.o=.d)"
 
   new_target "$1" "$2" "\$(OBJECTS.$MODULE)"
-    sh_cmd rm -f "$1"
-    ar_cmd -s "$1" "\$(OBJECTS.$MODULE)"
+    SH rm -f "$1"
+    AR -s "$1" "\$(OBJECTS.$MODULE)"
 
   new_target "all" "$1"
 }

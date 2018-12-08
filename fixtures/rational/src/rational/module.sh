@@ -10,7 +10,7 @@ specialize_object() {
 
 specialize_header() {
   new_target "\$(TARGET)/src/$MODULE/${3}rat.h" "\$(SOURCE)/$MODULE_DIR/rat.h"
-  cc_cmd -E -C $(cpp_macros "$@") "\$(SOURCE)/$MODULE_DIR/rat.h" '>"$@"'
+  CC -E -C $(cpp_macros "$@") "\$(SOURCE)/$MODULE_DIR/rat.h" '>"$@"'
 }
 
 # List integer types on fd 3
@@ -34,7 +34,7 @@ new_target "\$(TARGET)/include/rational.h" \
   $(printf " \$(TARGET)/src/$MODULE/%srat.h" "" l ll)
 
 # Recipe for composing header from parts
-sh_cmd \
+SH \
   "sed -n '/begin public rat.h/,/end public rat.h/p'" \
   "$(printf " \$(TARGET)/src/$MODULE/%srat.h" "" l ll)" \| \
   "sed '/\\(begin\\|end\\) public rat.h/d'" \| \

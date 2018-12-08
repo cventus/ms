@@ -1,3 +1,3 @@
 SOURCES=sum.c
-addcheck test/passes.c
-addcheck test/fails.c
+define_check test/passes.c
+define_check test/fails.c
