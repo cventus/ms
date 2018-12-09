@@ -21,8 +21,7 @@ define_check()
   CHECK_GENSRC="\$(TARGET)/test/$MODULE/src/$CHECK_NAME.check.c"
   CHECK_GENOBJ="\$(TARGET)/test/$MODULE/obj/$CHECK_NAME.check.o"
   CHECK_BINARY="\$(TARGET)/test/$MODULE/bin/$CHECK_NAME"
-  CHECK_DEPDIR="\$(TARGET)/make/test/$MODULE"
-  CHECK_DEPEND="$CHECK_DEPDIR/make$CHECK_NAME.a"
+  CHECK_DEPEND="\$(TARGET)/make/test/$MODULE/make$CHECK_NAME.a"
   CHECK_SCRIPT="\$(SOURCE)/src/check/checkgen.awk"
 
   # Rule to compile test functions
@@ -37,14 +36,13 @@ define_check()
   cc_target $CHECK_GENOBJ $CHECK_GENSRC
     CC_object $CHECK_GENOBJ $CHECK_GENSRC
 
+  new_target "$CHECK_DEPEND" "$CHECK_OBJECT" "$CHECK_GENOBJ"
+    AR "$CHECK_DEPEND" "${CHECK_OBJECT%.o}.d" "${CHECK_GENOBJ%.o}.d"
+
   # Rule to link the test executable
   ld_target "$CHECK_BINARY" \
     "$CHECK_OBJECT" "$CHECK_GENOBJ " \
-    "\$(TARGET)/lib/lib$MODULE.a" "\$(TARGET)/lib/libcheck.a" \
-    "$CHECK_DEPDIR\$D"
-
-    # Add source dependencies to archive
-    AR "$CHECK_DEPEND" "${CHECK_OBJECT%.o}.d" "${CHECK_GENOBJ%.o}.d"
+    "\$(TARGET)/lib/lib$MODULE.a" "\$(TARGET)/lib/libcheck.a"
 
     # Link test executable
     LD \
