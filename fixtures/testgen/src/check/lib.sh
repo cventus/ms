@@ -25,7 +25,7 @@ define_check()
   CHECK_SCRIPT="\$(SOURCE)/src/check/checkgen.awk"
 
   # Rule to compile test functions
-  cc_target "$CHECK_OBJECT" "$CHECK_SOURCE"
+  cc_target "$CHECK_OBJECT ${CHECK_OBJECT%.o}.d" "$CHECK_SOURCE"
     CC_object $CHECK_OBJECT "$CHECK_SOURCE" "$@"
 
   # Rule for generated source and function stubs
@@ -33,7 +33,7 @@ define_check()
     NM -PA $CHECK_OBJECT \| awk -f $CHECK_SCRIPT '>$@'
 
   # Rule to build generated source
-  cc_target $CHECK_GENOBJ $CHECK_GENSRC
+  cc_target "$CHECK_GENOBJ ${CHECK_GENOBJ%.o}.d" $CHECK_GENSRC
     CC_object $CHECK_GENOBJ $CHECK_GENSRC
 
   new_target "$CHECK_DEPEND" "$CHECK_OBJECT" "$CHECK_GENOBJ"
