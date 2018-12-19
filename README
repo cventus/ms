@@ -28,14 +28,15 @@ module directory. Makefile rules are generated for each listed source but any
 standard output is also passed on to make(1) and variables, rules, and commands
 can be dynamically generated here.
 
-The sources are compiled into a static library which is linked to any binary
-that depends on the module, such as the primary binary output or tests. For
-this reason it is a good idea to place main functions in separate source files
-so that functions in other object files in the library can be linked in with
-other definitions of main. Each build module can be linked into a binary if
-specified in the module configuration.
+The sources are compiled into a static library which is used when linking any
+binary that depends on the module, such as the primary binary output or tests.
+For this reason it is a good idea to place main functions in separate source
+files so that functions in other object files in the library can be linked in
+with other definitions of main. Each build module can be linked into a binary
+if specified in the module configuration.
 
-If a module generates header files then it is necessary to list them lit should 
+If a module generates header files then it is necessary to list them in the
+HEADERS variable.
 
 The module configuration can communicate with ms by defining the following
 shell variables:
@@ -85,5 +86,5 @@ contain the line
 TESTING MS
 ----------
 
-Run the ./test command in the root directory which outputs minimal TAP to
+Run the ./check command in the root directory which outputs minimal TAP to
 standard output. Test-run outputs are stored in the ./logs/ directory.
